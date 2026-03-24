@@ -5,7 +5,9 @@ import { DataMapper } from './components/DataMapper'
 import { AIGenerator } from './components/AIGenerator'
 import { useNotionData } from './hooks/useNotionData'
 import { useSelection } from './hooks/useSelection'
-import { loadToken, saveToken, loadSelectedDb, saveSelectedDb } from './services/storageService'
+import { getDatabaseTitle } from './types/notion'
+import type { NotionDatabase } from './types/notion'
+import { loadToken, saveToken, loadSelectedDb, saveSelectedDb, saveDatabases, loadDatabases } from './services/storageService'
 import './styles.css'
 
 type Tab = 'setup' | 'data' | 'ai'
@@ -19,24 +21,27 @@ export function App() {
   const notion = useNotionData()
   const { selectedNodes } = useSelection()
 
-  // 이 컴포넌트 마운트 시 한 번만 실행되도록 eslint 무시 또는 그냥 []
+  // 최적화된 초기화: 토큰 검증 스킵, 캐시된 DB 목록 사용, DB 쿼리만 실행
   useEffect(() => {
     let mounted = true
     const initStorage = async () => {
       const token = await loadToken()
-      if (token && mounted) {
-        setNotionToken(token)
-        const valid = await notion.validateToken(token)
-        if (mounted) setIsTokenValid(valid)
-        if (valid && mounted) {
-          await notion.searchDatabases(token)
-          
-          const dbId = await loadSelectedDb()
-          if (dbId && mounted) {
-            setSelectedDbId(dbId)
-            await notion.queryDatabase(token, dbId)
-          }
-        }
+      if (!token || !mounted) return
+
+      setNotionToken(token)
+      setIsTokenValid(true) // 저장된 토큰은 유효하다고 신뢰
+
+      // 캐시된 DB 목록 로드
+      const cachedDbs = await loadDatabases<NotionDatabase>()
+      if (cachedDbs && cachedDbs.length > 0 && mounted) {
+        notion.setDatabasesDirect(cachedDbs)
+      }
+
+      // 저장된 DB ID로 바로 데이터 쿼리 (네트워크 요청 1회만)
+      const dbId = await loadSelectedDb()
+      if (dbId && mounted) {
+        setSelectedDbId(dbId)
+        await notion.queryDatabase(token, dbId)
       }
     }
     initStorage()
@@ -97,6 +102,13 @@ export function App() {
             pages={notion.pages}
             properties={notion.properties}
             isConnected={!!selectedDbId && notion.pages.length > 0}
+            isLoading={notion.isLoading}
+            selectedDbName={
+              notion.databases.find((db) => db.id === selectedDbId)
+                ? getDatabaseTitle(notion.databases.find((db) => db.id === selectedDbId)!)
+                : '연결된 DB 없음'
+            }
+            onChangeDb={() => setActiveTab('setup')}
           />
         )}
 

@@ -3,6 +3,7 @@
 
 import { useState, useCallback } from 'react'
 import { callNotionProxy } from '../services/supabaseClient'
+import { saveDatabases } from '../services/storageService'
 import type { NotionDatabase, NotionPage } from '../types/notion'
 
 interface UseNotionDataReturn {
@@ -17,6 +18,7 @@ interface UseNotionDataReturn {
   validateToken: (token: string) => Promise<boolean>
   searchDatabases: (token: string) => Promise<void>
   queryDatabase: (token: string, databaseId: string) => Promise<void>
+  setDatabasesDirect: (dbs: NotionDatabase[]) => void
   clearError: () => void
 }
 
@@ -55,6 +57,8 @@ export function useNotionData(): UseNotionDataReturn {
         notionToken: token,
       })
       setDatabases(data.results ?? [])
+      // 캐시 저장
+      if (data.results) saveDatabases(data.results)
     } catch (err) {
       setError(
         err instanceof Error
@@ -109,6 +113,11 @@ export function useNotionData(): UseNotionDataReturn {
 
   const clearError = useCallback(() => setError(null), [])
 
+  // 캐시된 DB 목록을 직접 설정 (네트워크 요청 없이)
+  const setDatabasesDirect = useCallback((dbs: NotionDatabase[]) => {
+    setDatabases(dbs)
+  }, [])
+
   return {
     databases,
     pages,
@@ -118,6 +127,7 @@ export function useNotionData(): UseNotionDataReturn {
     validateToken,
     searchDatabases,
     queryDatabase,
+    setDatabasesDirect,
     clearError,
   }
 }

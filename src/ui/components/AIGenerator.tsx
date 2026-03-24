@@ -13,7 +13,6 @@ export function AIGenerator({ selectedNodes }: Props) {
   const [prompt, setPrompt] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   useEffect(() => {
     loadGeminiToken().then((savedToken) => {
@@ -28,8 +27,6 @@ export function AIGenerator({ selectedNodes }: Props) {
     if (!token.trim()) return
     saveGeminiToken(token.trim())
     setIsTokenSaved(true)
-    setSuccessMsg('API 키가 저장되었습니다.')
-    setTimeout(() => setSuccessMsg(null), 3000)
   }
 
   const handleGenerate = async () => {
@@ -48,7 +45,6 @@ export function AIGenerator({ selectedNodes }: Props) {
 
     setIsLoading(true)
     setError(null)
-    setSuccessMsg(null)
 
     try {
       const generatedMappings = await generateAIText({
@@ -71,8 +67,7 @@ export function AIGenerator({ selectedNodes }: Props) {
         }
       }, '*')
 
-      setSuccessMsg('성공적으로 텍스트가 적용되었습니다.')
-      setPrompt('') // 프롬프트 초기화 여부는 자유
+      setPrompt('') // 프롬프트 초기화
     } catch (err) {
       setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.')
     } finally {
@@ -136,7 +131,6 @@ export function AIGenerator({ selectedNodes }: Props) {
       )}
 
       {error && <div className="status-msg status-error" style={{ marginTop: '12px' }}>{error}</div>}
-      {successMsg && <div className="status-msg status-success" style={{ marginTop: '12px' }}>{successMsg}</div>}
     </div>
   )
 }

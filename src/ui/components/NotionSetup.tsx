@@ -84,13 +84,6 @@ export function NotionSetup({
         </div>
       )}
 
-      {/* 연결 성공 */}
-      {isTokenValid && !error && (
-        <div className="status-msg status-success" style={{ marginTop: 8 }}>
-          연결 성공! 데이터베이스를 선택해주세요.
-        </div>
-      )}
-
       {/* DB 선택 */}
       {databases.length > 0 && (
         <div className="field-group" style={{ marginTop: 12 }}>
