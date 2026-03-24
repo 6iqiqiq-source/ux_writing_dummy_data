@@ -1,0 +1,11 @@
+{
+  "name": "Notion Dummy Data",
+  "id": "notion-dummy-data-plugin",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": ["https://*.supabase.co"]
+  }
+}

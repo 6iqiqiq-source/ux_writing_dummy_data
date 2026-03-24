@@ -1,0 +1,128 @@
+/// <reference types="@figma/plugin-typings" />
+// Plugin 스레드 진입점
+// Figma API에 접근하고, UI와 postMessage로 통신
+
+import type { UIMessage, TextNodeInfo, PluginMessage } from './types'
+
+figma.showUI(__html__, { width: 360, height: 540 })
+
+// 현재 선택된 텍스트 노드 목록 추출
+function getSelectedTextNodes(): TextNodeInfo[] {
+  return figma.currentPage.selection
+    .filter((node): node is TextNode => node.type === 'TEXT')
+    .map((node) => ({
+      id: node.id,
+      name: node.name,
+      characters: node.characters,
+    }))
+}
+
+// UI에 선택 변경 알림
+function notifySelectionChange() {
+  const nodes = getSelectedTextNodes()
+  const msg: PluginMessage = { type: 'SELECTION_CHANGED', nodes }
+  figma.ui.postMessage(msg)
+}
+
+// 선택 변경 이벤트 감지
+figma.on('selectionchange', () => {
+  notifySelectionChange()
+})
+
+// UI → Plugin 메시지 처리
+figma.ui.onmessage = async (msg: UIMessage) => {
+  switch (msg.type) {
+    case 'GET_SELECTION': {
+      notifySelectionChange()
+      break
+    }
+
+    case 'APPLY_DATA': {
+      try {
+        const node = figma.getNodeById(msg.nodeId)
+        if (!node || node.type !== 'TEXT') {
+          const response: PluginMessage = {
+            type: 'APPLY_RESULT',
+            success: false,
+            error: '텍스트 노드를 찾을 수 없습니다',
+          }
+          figma.ui.postMessage(response)
+          return
+        }
+
+        // Mixed font 처리: 노드에 여러 폰트가 섞여있으면 전체 범위의 폰트를 로딩
+        if (node.fontName === figma.mixed) {
+          const len = node.characters.length
+          for (let i = 0; i < len; i++) {
+            await figma.loadFontAsync(node.getRangeFontName(i, i + 1) as FontName)
+          }
+        } else {
+          await figma.loadFontAsync(node.fontName as FontName)
+        }
+
+        node.characters = msg.text
+        const response: PluginMessage = { type: 'APPLY_RESULT', success: true }
+        figma.ui.postMessage(response)
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류'
+        const response: PluginMessage = {
+          type: 'APPLY_RESULT',
+          success: false,
+          error: errorMsg,
+        }
+        figma.ui.postMessage(response)
+      }
+      break
+    }
+
+    case 'BULK_FILL': {
+      const { mappings } = msg
+      for (let i = 0; i < mappings.length; i++) {
+        try {
+          const node = figma.getNodeById(mappings[i].nodeId)
+          if (!node || node.type !== 'TEXT') continue
+
+          if (node.fontName === figma.mixed) {
+            const len = node.characters.length
+            for (let j = 0; j < len; j++) {
+              await figma.loadFontAsync(node.getRangeFontName(j, j + 1) as FontName)
+            }
+          } else {
+            await figma.loadFontAsync(node.fontName as FontName)
+          }
+
+          node.characters = mappings[i].text
+        } catch {
+          // 개별 노드 실패 시 건너뛰고 계속 진행
+        }
+
+        const progress: PluginMessage = {
+          type: 'BULK_PROGRESS',
+          current: i + 1,
+          total: mappings.length,
+        }
+        figma.ui.postMessage(progress)
+      }
+
+      const response: PluginMessage = { type: 'APPLY_RESULT', success: true }
+      figma.ui.postMessage(response)
+      break
+    }
+
+    case 'SAVE_STORAGE': {
+      await figma.clientStorage.setAsync(msg.key, msg.value)
+      break
+    }
+
+    case 'LOAD_STORAGE': {
+      const data = await figma.clientStorage.getAsync(msg.key)
+      const response: PluginMessage = {
+        type: 'STORAGE_RESULT',
+        key: msg.key,
+        data,
+      }
+      figma.ui.postMessage(response)
+      break
+    }
+  }
+}
