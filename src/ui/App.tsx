@@ -1,10 +1,11 @@
 // 메인 앱 컴포넌트 - 탭 네비게이션
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { NotionSetup } from './components/NotionSetup'
 import { DataMapper } from './components/DataMapper'
 import { PresetManager } from './components/PresetManager'
 import { useNotionData } from './hooks/useNotionData'
 import { useSelection } from './hooks/useSelection'
+import { loadToken, saveToken, loadSelectedDb, saveSelectedDb } from './services/storageService'
 import './styles.css'
 
 type Tab = 'setup' | 'data' | 'preset'
@@ -13,9 +14,35 @@ export function App() {
   const [activeTab, setActiveTab] = useState<Tab>('setup')
   const [notionToken, setNotionToken] = useState('')
   const [selectedDbId, setSelectedDbId] = useState('')
+  const [isTokenValid, setIsTokenValid] = useState(false)
 
   const notion = useNotionData()
   const { selectedNodes } = useSelection()
+
+  // 이 컴포넌트 마운트 시 한 번만 실행되도록 eslint 무시 또는 그냥 []
+  useEffect(() => {
+    let mounted = true
+    const initStorage = async () => {
+      const token = await loadToken()
+      if (token && mounted) {
+        setNotionToken(token)
+        const valid = await notion.validateToken(token)
+        if (mounted) setIsTokenValid(valid)
+        if (valid && mounted) {
+          await notion.searchDatabases(token)
+          
+          const dbId = await loadSelectedDb()
+          if (dbId && mounted) {
+            setSelectedDbId(dbId)
+            await notion.queryDatabase(token, dbId)
+          }
+        }
+      }
+    }
+    initStorage()
+    return () => { mounted = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'setup', label: '설정' },
@@ -41,11 +68,17 @@ export function App() {
         {activeTab === 'setup' && (
           <NotionSetup
             token={notionToken}
-            onTokenChange={setNotionToken}
+            isTokenValid={isTokenValid}
+            onTokenValidChange={setIsTokenValid}
+            onTokenChange={(token) => {
+              setNotionToken(token)
+              saveToken(token)
+            }}
             databases={notion.databases}
             selectedDbId={selectedDbId}
             onSelectDb={(dbId) => {
               setSelectedDbId(dbId)
+              saveSelectedDb(dbId)
               if (dbId && notionToken) {
                 notion.queryDatabase(notionToken, dbId)
               }

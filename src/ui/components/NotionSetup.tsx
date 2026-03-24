@@ -6,6 +6,8 @@ import { getDatabaseTitle } from '../types/notion'
 
 interface NotionSetupProps {
   token: string
+  isTokenValid: boolean
+  onTokenValidChange: (valid: boolean) => void
   onTokenChange: (token: string) => void
   databases: NotionDatabase[]
   selectedDbId: string
@@ -19,6 +21,8 @@ interface NotionSetupProps {
 
 export function NotionSetup({
   token,
+  isTokenValid,
+  onTokenValidChange,
   onTokenChange,
   databases,
   selectedDbId,
@@ -29,12 +33,10 @@ export function NotionSetup({
   onSearchDatabases,
   onClearError,
 }: NotionSetupProps) {
-  const [isTokenValid, setIsTokenValid] = useState(false)
-
   const handleConnect = async () => {
     onClearError()
     const valid = await onValidateToken()
-    setIsTokenValid(valid)
+    onTokenValidChange(valid)
     if (valid) {
       await onSearchDatabases()
     }
@@ -52,7 +54,7 @@ export function NotionSetup({
           value={token}
           onChange={(e) => {
             onTokenChange(e.target.value)
-            setIsTokenValid(false)
+            onTokenValidChange(false)
           }}
         />
       </div>
