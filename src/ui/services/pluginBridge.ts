@@ -29,6 +29,7 @@ export function onPluginMessage(handler: MessageHandler): () => void {
 // 특정 타입의 메시지를 기다리는 Promise 헬퍼
 export function waitForMessage<T extends PluginMessage['type']>(
   type: T,
+  filter?: (msg: Extract<PluginMessage, { type: T }>) => boolean,
   timeoutMs = 10000
 ): Promise<Extract<PluginMessage, { type: T }>> {
   return new Promise((resolve, reject) => {
@@ -39,9 +40,13 @@ export function waitForMessage<T extends PluginMessage['type']>(
 
     const cleanup = onPluginMessage((msg) => {
       if (msg.type === type) {
+        const typedMsg = msg as Extract<PluginMessage, { type: T }>
+        if (filter && !filter(typedMsg)) {
+          return // 필터 조건에 맞지 않으면 무시
+        }
         clearTimeout(timer)
         cleanup()
-        resolve(msg as Extract<PluginMessage, { type: T }>)
+        resolve(typedMsg)
       }
     })
   })
@@ -61,6 +66,6 @@ export function saveStorage(key: string, value: unknown) {
 // clientStorage에서 데이터 로드
 export async function loadStorage<T>(key: string): Promise<T | null> {
   postToPlugin({ type: 'LOAD_STORAGE', key })
-  const result = await waitForMessage('STORAGE_RESULT')
+  const result = await waitForMessage('STORAGE_RESULT', (msg) => msg.key === key)
   return (result.data as T) ?? null
 }

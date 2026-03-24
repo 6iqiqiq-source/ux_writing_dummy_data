@@ -5,8 +5,8 @@ import { saveStorage, loadStorage } from './pluginBridge'
 // 저장 키 상수
 export const STORAGE_KEYS = {
   NOTION_TOKEN: 'notion_token',
+  GEMINI_TOKEN: 'gemini_token',
   SELECTED_DB: 'selected_db',
-  PRESETS: 'presets',
 } as const
 
 // 토큰 저장/로드
@@ -27,23 +27,12 @@ export async function loadSelectedDb(): Promise<string | null> {
   return loadStorage<string>(STORAGE_KEYS.SELECTED_DB)
 }
 
-// 프리셋 저장/로드
-export function savePresets(presets: Preset[]) {
-  saveStorage(STORAGE_KEYS.PRESETS, presets)
+// 제미나이 토큰 저장/로드
+export function saveGeminiToken(token: string) {
+  saveStorage(STORAGE_KEYS.GEMINI_TOKEN, token)
 }
 
-export async function loadPresets(): Promise<Preset[]> {
-  return (await loadStorage<Preset[]>(STORAGE_KEYS.PRESETS)) ?? []
+export async function loadGeminiToken(): Promise<string | null> {
+  return loadStorage<string>(STORAGE_KEYS.GEMINI_TOKEN)
 }
 
-// 프리셋 타입
-export interface Preset {
-  id: string
-  name: string
-  databaseId: string
-  databaseName: string
-  mappings: Array<{ layerPattern: string; notionField: string }>
-  mode: 'random' | 'sequential'
-  token?: string
-  createdAt: number
-}

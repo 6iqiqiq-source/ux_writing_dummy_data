@@ -2,16 +2,16 @@
 import React, { useState, useEffect } from 'react'
 import { NotionSetup } from './components/NotionSetup'
 import { DataMapper } from './components/DataMapper'
-import { PresetManager } from './components/PresetManager'
+import { AIGenerator } from './components/AIGenerator'
 import { useNotionData } from './hooks/useNotionData'
 import { useSelection } from './hooks/useSelection'
 import { loadToken, saveToken, loadSelectedDb, saveSelectedDb } from './services/storageService'
 import './styles.css'
 
-type Tab = 'setup' | 'data' | 'preset'
+type Tab = 'setup' | 'data' | 'ai'
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('setup')
+  const [activeTab, setActiveTab] = useState<Tab>('ai')
   const [notionToken, setNotionToken] = useState('')
   const [selectedDbId, setSelectedDbId] = useState('')
   const [isTokenValid, setIsTokenValid] = useState(false)
@@ -45,9 +45,9 @@ export function App() {
   }, [])
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'setup', label: '설정' },
+    { key: 'ai', label: 'AI 생성' },
     { key: 'data', label: '데이터' },
-    { key: 'preset', label: '프리셋' },
+    { key: 'setup', label: '설정' },
   ]
 
   return (
@@ -100,16 +100,8 @@ export function App() {
           />
         )}
 
-        {activeTab === 'preset' && (
-          <PresetManager
-            token={notionToken}
-            selectedDbId={selectedDbId}
-            onLoadPreset={(preset) => {
-              setNotionToken(preset.token || notionToken)
-              setSelectedDbId(preset.databaseId)
-              setActiveTab('data')
-            }}
-          />
+        {activeTab === 'ai' && (
+          <AIGenerator selectedNodes={selectedNodes} />
         )}
       </div>
     </div>

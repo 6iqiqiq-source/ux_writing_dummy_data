@@ -273,36 +273,7 @@ body {
   font-size: 11px;
 }
 
-/* 프리셋 카드 */
-.preset-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px;
-  border: 1px solid #e5e5e5;
-  border-radius: 4px;
-  margin-bottom: 6px;
-}
 
-.preset-name {
-  font-weight: 500;
-  font-size: 12px;
-}
-
-.preset-meta {
-  font-size: 10px;
-  color: #999;
-}
-
-.preset-actions {
-  display: flex;
-  gap: 4px;
-}
-
-.btn-small {
-  padding: 4px 8px;
-  font-size: 10px;
-}
 
 /* 모드 토글 */
 .mode-toggle {

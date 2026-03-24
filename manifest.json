@@ -6,6 +6,9 @@
   "ui": "dist/ui.html",
   "editorType": ["figma"],
   "networkAccess": {
-    "allowedDomains": ["https://*.supabase.co"]
+    "allowedDomains": [
+      "https://*.supabase.co",
+      "https://generativelanguage.googleapis.com"
+    ]
   }
 }
