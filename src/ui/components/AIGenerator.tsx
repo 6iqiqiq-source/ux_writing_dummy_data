@@ -12,7 +12,12 @@ export function AIGenerator({ selectedNodes }: Props) {
   const [isTokenSaved, setIsTokenSaved] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string; key: number } | null>(null)
+
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message, key: Date.now() })
+    setTimeout(() => setToast(null), 3000)
+  }
 
   useEffect(() => {
     loadGeminiToken().then((savedToken) => {
@@ -31,20 +36,19 @@ export function AIGenerator({ selectedNodes }: Props) {
 
   const handleGenerate = async () => {
     if (!token) {
-      setError('Gemini API 키가 필요합니다.')
+      showToast('error', 'Gemini API 키가 필요합니다.')
       return
     }
     if (!prompt.trim()) {
-      setError('프롬프트를 입력해주세요.')
+      showToast('error', '프롬프트를 입력해주세요.')
       return
     }
     if (selectedNodes.length === 0) {
-      setError('변경할 텍스트 레이어를 하나 이상 선택해주세요.')
+      showToast('error', '변경할 텍스트 레이어를 하나 이상 선택해주세요.')
       return
     }
 
     setIsLoading(true)
-    setError(null)
 
     try {
       const generatedMappings = await generateAIText({
@@ -54,7 +58,7 @@ export function AIGenerator({ selectedNodes }: Props) {
       })
 
       if (generatedMappings.length === 0) {
-        setError('생성된 텍스트가 없습니다.')
+        showToast('error', '생성된 텍스트가 없습니다.')
         setIsLoading(false)
         return
       }
@@ -68,8 +72,9 @@ export function AIGenerator({ selectedNodes }: Props) {
       }, '*')
 
       setPrompt('') // 프롬프트 초기화
+      showToast('success', `${selectedNodes.length}개 레이어에 텍스트를 생성했습니다`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.')
+      showToast('error', err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.')
     } finally {
       setIsLoading(false)
     }
@@ -130,7 +135,15 @@ export function AIGenerator({ selectedNodes }: Props) {
         </>
       )}
 
-      {error && <div className="status-msg status-error" style={{ marginTop: '12px' }}>{error}</div>}
+      {/* 하단 고정 토스트 메시지 */}
+      {toast && (
+        <div
+          key={toast.key}
+          className={`status-msg-toast ${toast.type === 'success' ? 'status-success' : 'status-error'}`}
+        >
+          {toast.message}
+        </div>
+      )}
     </div>
   )
 }

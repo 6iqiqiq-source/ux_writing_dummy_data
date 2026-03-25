@@ -17,6 +17,22 @@ function getSelectedTextNodes(): TextNodeInfo[] {
     }))
 }
 
+// 선택된 노드(프레임 포함)에서 하위 텍스트 노드를 재귀적으로 추출
+function getTextNodesRecursive(node: SceneNode): TextNodeInfo[] {
+  if (node.type === 'TEXT') {
+    return [{ id: node.id, name: node.name, characters: node.characters }]
+  }
+  if ('children' in node) {
+    const results: TextNodeInfo[] = []
+    const children = (node as ChildrenMixin & SceneNode).children
+    for (const child of children) {
+      results.push(...getTextNodesRecursive(child))
+    }
+    return results
+  }
+  return []
+}
+
 // UI에 선택 변경 알림
 function notifySelectionChange() {
   const nodes = getSelectedTextNodes()
@@ -34,6 +50,16 @@ figma.ui.onmessage = async (msg: UIMessage) => {
   switch (msg.type) {
     case 'GET_SELECTION': {
       notifySelectionChange()
+      break
+    }
+
+    case 'GET_FRAME_TEXT_NODES': {
+      const allTextNodes: TextNodeInfo[] = []
+      for (const node of figma.currentPage.selection) {
+        allTextNodes.push(...getTextNodesRecursive(node))
+      }
+      const response: PluginMessage = { type: 'FRAME_TEXT_NODES', nodes: allTextNodes }
+      figma.ui.postMessage(response)
       break
     }
 

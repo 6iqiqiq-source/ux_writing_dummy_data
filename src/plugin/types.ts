@@ -10,6 +10,7 @@ export interface TextNodeInfo {
 // Plugin → UI 메시지
 export type PluginMessage =
   | { type: 'SELECTION_CHANGED'; nodes: TextNodeInfo[] }
+  | { type: 'FRAME_TEXT_NODES'; nodes: TextNodeInfo[] }
   | { type: 'STORAGE_RESULT'; key: string; data: unknown }
   | { type: 'APPLY_RESULT'; success: boolean; error?: string }
   | { type: 'BULK_PROGRESS'; current: number; total: number }
@@ -17,6 +18,7 @@ export type PluginMessage =
 // UI → Plugin 메시지
 export type UIMessage =
   | { type: 'GET_SELECTION' }
+  | { type: 'GET_FRAME_TEXT_NODES' }
   | { type: 'APPLY_DATA'; nodeId: string; text: string }
   | { type: 'BULK_FILL'; mappings: Array<{ nodeId: string; text: string }> }
   | { type: 'SAVE_STORAGE'; key: string; value: unknown }

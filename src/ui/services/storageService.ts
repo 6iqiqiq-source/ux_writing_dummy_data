@@ -4,20 +4,13 @@ import { saveStorage, loadStorage } from './pluginBridge'
 
 // 저장 키 상수
 export const STORAGE_KEYS = {
-  NOTION_TOKEN: 'notion_token',
   GEMINI_TOKEN: 'gemini_token',
   SELECTED_DB: 'selected_db',
   CACHED_DATABASES: 'cached_databases',
+  GUIDELINE_PAGE_ID: 'guideline_page_id',
+  GUIDELINE_PAGE_NAME: 'guideline_page_name',
+  GUIDELINE_TEXT_CACHE: 'guideline_text_cache',
 } as const
-
-// 토큰 저장/로드
-export function saveToken(token: string) {
-  saveStorage(STORAGE_KEYS.NOTION_TOKEN, token)
-}
-
-export async function loadToken(): Promise<string | null> {
-  return loadStorage<string>(STORAGE_KEYS.NOTION_TOKEN)
-}
 
 // 선택된 DB 저장/로드
 export function saveSelectedDb(dbId: string) {
@@ -44,4 +37,31 @@ export function saveDatabases(databases: unknown[]) {
 
 export async function loadDatabases<T>(): Promise<T[] | null> {
   return loadStorage<T[]>(STORAGE_KEYS.CACHED_DATABASES)
+}
+
+// 가이드라인 페이지 ID 저장/로드
+export function saveGuidelinePageId(pageId: string): void {
+  saveStorage(STORAGE_KEYS.GUIDELINE_PAGE_ID, pageId)
+}
+
+export async function loadGuidelinePageId(): Promise<string | null> {
+  return loadStorage<string>(STORAGE_KEYS.GUIDELINE_PAGE_ID)
+}
+
+// 가이드라인 페이지 이름 저장/로드
+export function saveGuidelinePageName(name: string): void {
+  saveStorage(STORAGE_KEYS.GUIDELINE_PAGE_NAME, name)
+}
+
+export async function loadGuidelinePageName(): Promise<string | null> {
+  return loadStorage<string>(STORAGE_KEYS.GUIDELINE_PAGE_NAME)
+}
+
+// 가이드라인 텍스트 캐시 저장/로드
+export function saveGuidelineTextCache(text: string): void {
+  saveStorage(STORAGE_KEYS.GUIDELINE_TEXT_CACHE, text)
+}
+
+export async function loadGuidelineTextCache(): Promise<string | null> {
+  return loadStorage<string>(STORAGE_KEYS.GUIDELINE_TEXT_CACHE)
 }

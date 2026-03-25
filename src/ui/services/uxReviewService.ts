@@ -1,0 +1,133 @@
+// UX 라이팅 검증 AI 서비스
+// Gemini API를 사용하여 가이드라인 기반으로 텍스트 검증
+
+export interface ReviewResult {
+  nodeId: string
+  nodeName: string
+  originalText: string
+  status: 'pass' | 'fail'
+  reason?: string // fail인 경우 위반 사유
+  suggestion?: string // fail인 경우 개선안 텍스트
+  guidelineRef?: string // 참조한 가이드라인 항목
+}
+
+export interface ReviewParams {
+  nodes: Array<{ id: string; name: string; originalText: string }>
+  guidelineText: string
+  apiKey: string
+}
+
+export async function reviewUXWriting(params: ReviewParams): Promise<ReviewResult[]> {
+  const { nodes, guidelineText, apiKey } = params
+
+  if (!nodes.length) return []
+  if (!apiKey) throw new Error('Gemini API 키가 필요합니다.')
+  if (!guidelineText) throw new Error('가이드라인 문서가 설정되지 않았습니다.')
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
+
+  const systemInstruction = `
+당신은 전문 UX 라이팅 검수자입니다.
+제공된 UX 라이팅 가이드라인을 기준으로, Figma 디자인의 텍스트 노드들이 가이드라인에 부합하는지 검증하세요.
+
+## 가이드라인:
+${guidelineText}
+
+## 검증 기준:
+- 가이드라인에 명시된 톤앤매너, 용어, 문법 규칙을 따르는지 확인
+- 사용자 경험을 해치는 표현이 있는지 점검
+- 일관성과 명확성을 평가
+
+## 응답 형식:
+각 노드에 대해 다음 JSON 배열로 응답하세요 (Markdown 코드 블록 포함하지 마세요):
+[
+  {
+    "nodeId": "노드ID",
+    "status": "pass" 또는 "fail",
+    "reason": "fail인 경우 구체적인 위반 사유 (pass면 생략)",
+    "suggestion": "fail인 경우 가이드라인에 맞는 개선안 텍스트 (pass면 생략)",
+    "guidelineRef": "참조한 가이드라인 항목 (있으면)"
+  }
+]
+
+- pass: 가이드라인에 부합함
+- fail: 가이드라인 위반, reason과 suggestion 필수
+`.trim()
+
+  const userContent = `검증할 텍스트 노드 목록:\n${JSON.stringify(
+    nodes.map(n => ({ id: n.id, name: n.name, originalText: n.originalText })),
+    null,
+    2
+  )}`
+
+  const body = {
+    system_instruction: {
+      parts: { text: systemInstruction }
+    },
+    contents: [
+      {
+        parts: [{ text: userContent }],
+      },
+    ],
+    generationConfig: {
+      response_mime_type: "application/json",
+      temperature: 0.3, // 일관된 판단을 위해 낮은 temperature
+    }
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    if (!response.ok) {
+      const errData = await response.json()
+      throw new Error(errData.error?.message || 'Gemini API 호출에 실패했습니다.')
+    }
+
+    const data = await response.json()
+    const contentText = data.candidates?.[0]?.content?.parts?.[0]?.text
+    if (!contentText) {
+      throw new Error('응답을 파싱할 수 없습니다.')
+    }
+
+    let results: Array<{
+      nodeId: string
+      status: 'pass' | 'fail'
+      reason?: string
+      suggestion?: string
+      guidelineRef?: string
+    }> = []
+
+    try {
+      results = JSON.parse(contentText)
+      if (!Array.isArray(results)) {
+        throw new Error('응답이 배열 형식이 아닙니다.')
+      }
+    } catch (e) {
+      throw new Error('API 응답 형식이 올바르지 않습니다.')
+    }
+
+    // 결과 매핑: nodeName과 originalText 추가
+    return results.map((result) => {
+      const node = nodes.find(n => n.id === result.nodeId)
+      return {
+        nodeId: result.nodeId,
+        nodeName: node?.name || '알 수 없음',
+        originalText: node?.originalText || '',
+        status: result.status,
+        reason: result.reason,
+        suggestion: result.suggestion,
+        guidelineRef: result.guidelineRef,
+      }
+    })
+
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error('알 수 없는 오류가 발생했습니다.')
+  }
+}

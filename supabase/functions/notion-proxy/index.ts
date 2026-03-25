@@ -1,9 +1,13 @@
 // Notion API 프록시 Edge Function
 // Figma 플러그인 UI에서 CORS 제약 없이 Notion API를 호출하기 위한 중간 프록시
+// 회사 Notion 토큰을 서버 측에서 관리하여 클라이언트에 노출되지 않도록 함
 import { corsHeaders } from '../_shared/cors.ts'
 
 const NOTION_API_BASE = 'https://api.notion.com'
 const NOTION_VERSION = '2022-06-28'
+
+// 회사 공용 Notion Integration Token (환경 변수 사용)
+const COMPANY_NOTION_TOKEN = Deno.env.get('COMPANY_NOTION_TOKEN')
 
 Deno.serve(async (req) => {
   // CORS preflight 요청 처리
@@ -12,7 +16,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { action, notionToken, databaseId, ...params } = await req.json()
+    const { action, databaseId, ...params } = await req.json()
 
     // 필수 파라미터 검증
     if (!action) {
@@ -25,18 +29,8 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (!notionToken) {
-      return new Response(
-        JSON.stringify({ error: 'notionToken 파라미터가 필요합니다' }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
-        }
-      )
-    }
-
     const notionHeaders = {
-      Authorization: `Bearer ${notionToken}`,
+      Authorization: `Bearer ${COMPANY_NOTION_TOKEN}`,
       'Notion-Version': NOTION_VERSION,
       'Content-Type': 'application/json',
     }
@@ -84,6 +78,58 @@ Deno.serve(async (req) => {
           }
         )
         break
+
+      // Notion 페이지 검색 (가이드라인 문서용)
+      case 'search_pages': {
+        const { query: searchQuery } = params as { query?: string }
+        result = await fetch(`${NOTION_API_BASE}/v1/search`, {
+          method: 'POST',
+          headers: notionHeaders,
+          body: JSON.stringify({
+            query: searchQuery || '',
+            filter: { property: 'object', value: 'page' },
+          }),
+        })
+        break
+      }
+
+      // 페이지/블록의 하위 블록 조회 (가이드라인 콘텐츠)
+      case 'retrieve_blocks': {
+        const { blockId, startCursor } = params as { blockId?: string; startCursor?: string }
+        if (!blockId) {
+          return new Response(
+            JSON.stringify({ error: 'retrieve_blocks 액션에는 blockId가 필요합니다' }),
+            {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 400,
+            }
+          )
+        }
+        let url = `${NOTION_API_BASE}/v1/blocks/${blockId}/children?page_size=100`
+        if (startCursor) {
+          url += `&start_cursor=${startCursor}`
+        }
+        result = await fetch(url, { headers: notionHeaders })
+        break
+      }
+
+      // 페이지 정보 조회 (URL로 입력된 경우)
+      case 'retrieve_page': {
+        const { pageId } = params as { pageId?: string }
+        if (!pageId) {
+          return new Response(
+            JSON.stringify({ error: 'retrieve_page 액션에는 pageId가 필요합니다' }),
+            {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 400,
+            }
+          )
+        }
+        result = await fetch(`${NOTION_API_BASE}/v1/pages/${pageId}`, {
+          headers: notionHeaders,
+        })
+        break
+      }
 
       default:
         return new Response(

@@ -25,7 +25,12 @@ export function DataMapper({
   onChangeDb,
 }: DataMapperProps) {
   const [applyingField, setApplyingField] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string; key: number } | null>(null)
+
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message, key: Date.now() })
+    setTimeout(() => setToast(null), 3000)
+  }
 
   const propertyNames = useMemo(() => Object.keys(properties), [properties])
 
@@ -34,7 +39,6 @@ export function DataMapper({
     if (selectedNodes.length === 0 || pages.length === 0) return
 
     setApplyingField(field)
-    setError(null)
 
     try {
       const mappings: Array<{ nodeId: string; text: string }> = []
@@ -52,7 +56,7 @@ export function DataMapper({
       }
 
       if (mappings.length === 0) {
-        setError('적용할 데이터가 없습니다.')
+        showToast('error', '적용할 데이터가 없습니다.')
         setApplyingField(null)
         return
       }
@@ -65,8 +69,10 @@ export function DataMapper({
         },
       }, '*')
 
+      showToast('success', `${mappings.length}개 레이어에 데이터를 적용했습니다`)
+
     } catch {
-      setError('적용 중 오류가 발생했습니다.')
+      showToast('error', '적용 중 오류가 발생했습니다.')
     } finally {
       setApplyingField(null)
     }
@@ -126,10 +132,13 @@ export function DataMapper({
         ))}
       </div>
 
-      {/* 에러 메시지 */}
-      {error && (
-        <div className="status-msg status-error" style={{ marginTop: 12 }}>
-          {error}
+      {/* 하단 고정 토스트 메시지 */}
+      {toast && (
+        <div
+          key={toast.key}
+          className={`status-msg-toast ${toast.type === 'success' ? 'status-success' : 'status-error'}`}
+        >
+          {toast.message}
         </div>
       )}
     </div>
