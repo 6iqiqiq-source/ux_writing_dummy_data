@@ -15,16 +15,17 @@ export interface ReviewParams {
   nodes: Array<{ id: string; name: string; originalText: string }>
   guidelineText: string
   apiKey: string
+  model?: string
 }
 
 export async function reviewUXWriting(params: ReviewParams): Promise<ReviewResult[]> {
-  const { nodes, guidelineText, apiKey } = params
+  const { nodes, guidelineText, apiKey, model = 'gemini-2.5-flash' } = params
 
   if (!nodes.length) return []
   if (!apiKey) throw new Error('Gemini API 키가 필요합니다.')
   if (!guidelineText) throw new Error('가이드라인 문서가 설정되지 않았습니다.')
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
 
   const systemInstruction = `
 당신은 전문 UX 라이팅 검수자입니다.
@@ -110,6 +111,9 @@ ${guidelineText}
     } catch (e) {
       throw new Error('API 응답 형식이 올바르지 않습니다.')
     }
+
+    // 성공 시 사용량 증가 (background task)
+    import('./storageService').then(m => m.incrementUsage(model)).catch(console.error)
 
     // 결과 매핑: nodeName과 originalText 추가
     return results.map((result) => {

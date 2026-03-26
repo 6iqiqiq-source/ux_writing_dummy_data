@@ -17,6 +17,10 @@ interface NotionSetupProps {
   guidelinePageId: string
   guidelinePageName: string
   onSelectGuideline: (pageId: string, pageName: string) => void
+  // 모델 관련
+  geminiModel: string
+  onSelectModel: (model: string) => void
+  usageStats: Record<string, number>
 }
 
 export function NotionSetup({
@@ -30,6 +34,9 @@ export function NotionSetup({
   guidelinePageId,
   guidelinePageName,
   onSelectGuideline,
+  geminiModel,
+  onSelectModel,
+  usageStats,
 }: NotionSetupProps) {
   // 가이드라인 페이지 ID 입력 상태
   const [pageIdInput, setPageIdInput] = useState('')
@@ -126,6 +133,65 @@ export function NotionSetup({
           flexShrink: 0,
         }} />
         <span style={{ fontSize: 11, color: '#666' }}>연결 상태 : 정상</span>
+      </div>
+
+      {/* AI 모델 선택 */}
+      <div className="field-group" style={{ marginBottom: 16 }}>
+        <label className="field-label">AI 모델 선택</label>
+        <select
+          className="field-select"
+          value={geminiModel}
+          onChange={(e) => onSelectModel(e.target.value)}
+        >
+          <option value="gemini-3-flash-preview">Gemini 3 Flash</option>
+          <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+          <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+        </select>
+        <div style={{ fontSize: 10, color: '#999', marginTop: 4 }}>
+          💡 모델에 따라 생성 속도와 품질이 다를 수 있습니다.
+        </div>
+      </div>
+
+      {/* 실시간 사용 현황 */}
+      <div style={{
+        background: '#f9f9f9',
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 20,
+        border: '1px solid #eee'
+      }}>
+        <h4 style={{ fontSize: 11, fontWeight: 600, marginBottom: 10, color: '#333' }}>실시간 사용 현황</h4>
+        
+        {[
+          { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', limit: 5 },
+          { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', limit: 10 },
+          { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', limit: 20 },
+        ].map(model => {
+          const usage = usageStats[model.id] || 0
+          const percentage = Math.min((usage / model.limit) * 100, 100)
+          
+          return (
+            <div key={model.id} style={{ marginBottom: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 4 }}>
+                <span style={{ color: '#666' }}>{model.name}</span>
+                <span style={{ fontWeight: 500 }}>{usage} / {model.limit}</span>
+              </div>
+              <div style={{
+                height: 4,
+                background: '#e5e5e5',
+                borderRadius: 2,
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  height: '100%',
+                  width: `${percentage}%`,
+                  background: percentage > 80 ? '#ef4444' : '#3b82f6',
+                  transition: 'width 0.3s ease'
+                }} />
+              </div>
+            </div>
+          )
+        })}
       </div>
 
 

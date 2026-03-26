@@ -5,9 +5,10 @@ import { generateAIText } from '../services/geminiService'
 
 interface Props {
   selectedNodes: TextNodeInfo[]
+  geminiModel: string
 }
 
-export function AIGenerator({ selectedNodes }: Props) {
+export function AIGenerator({ selectedNodes, geminiModel }: Props) {
   const [token, setToken] = useState('')
   const [isTokenSaved, setIsTokenSaved] = useState(false)
   const [prompt, setPrompt] = useState('')
@@ -54,7 +55,8 @@ export function AIGenerator({ selectedNodes }: Props) {
       const generatedMappings = await generateAIText({
         apiKey: token,
         prompt: prompt.trim(),
-        nodes: selectedNodes.map(n => ({ id: n.id, originalText: n.characters }))
+        nodes: selectedNodes.map(n => ({ id: n.id, originalText: n.characters })),
+        model: geminiModel
       })
 
       if (generatedMappings.length === 0) {

@@ -8,7 +8,7 @@ import { useNotionData } from './hooks/useNotionData'
 import { useSelection } from './hooks/useSelection'
 import { getDatabaseTitle } from './types/notion'
 import type { NotionDatabase } from './types/notion'
-import { loadSelectedDb, saveSelectedDb, saveDatabases, loadDatabases, loadGuidelinePageId, loadGuidelinePageName, saveGuidelinePageId, saveGuidelinePageName } from './services/storageService'
+import { loadSelectedDb, saveSelectedDb, saveDatabases, loadDatabases, loadGuidelinePageId, loadGuidelinePageName, saveGuidelinePageId, saveGuidelinePageName, loadGeminiModel, saveGeminiModel, getUsageStats } from './services/storageService'
 import './styles.css'
 
 type Tab = 'setup' | 'data' | 'ai' | 'review'
@@ -20,6 +20,8 @@ export function App() {
   // 가이드라인 상태
   const [guidelinePageId, setGuidelinePageId] = useState('')
   const [guidelinePageName, setGuidelinePageName] = useState('')
+  const [geminiModel, setGeminiModel] = useState('gemini-2.5-flash')
+  const [usageStats, setUsageStats] = useState<Record<string, number>>({})
 
   const notion = useNotionData()
   const { selectedNodes } = useSelection()
@@ -48,6 +50,18 @@ export function App() {
         setGuidelinePageId(pageId)
         setGuidelinePageName(pageName)
       }
+
+      // 모델 설정 로드
+      const model = await loadGeminiModel()
+      if (model && mounted) {
+        setGeminiModel(model)
+      }
+
+      // 사용량 통계 로드
+      const stats = await getUsageStats()
+      if (stats && mounted) {
+        setUsageStats(stats)
+      }
     }
     initStorage()
     return () => { mounted = false }
@@ -67,6 +81,12 @@ export function App() {
     setGuidelinePageName(pageName)
     saveGuidelinePageId(pageId)
     saveGuidelinePageName(pageName)
+  }
+
+  // 모델 선택 핸들러
+  const handleSelectModel = (model: string) => {
+    setGeminiModel(model)
+    saveGeminiModel(model)
   }
 
   return (
@@ -102,6 +122,9 @@ export function App() {
             guidelinePageId={guidelinePageId}
             guidelinePageName={guidelinePageName}
             onSelectGuideline={handleSelectGuideline}
+            geminiModel={geminiModel}
+            onSelectModel={handleSelectModel}
+            usageStats={usageStats}
           />
         )}
 
@@ -109,6 +132,7 @@ export function App() {
           <UXReview
             guidelinePageId={guidelinePageId}
             guidelinePageName={guidelinePageName}
+            geminiModel={geminiModel}
           />
         )}
 
@@ -131,7 +155,7 @@ export function App() {
         )}
 
         {activeTab === 'ai' && (
-          <AIGenerator selectedNodes={selectedNodes} />
+          <AIGenerator selectedNodes={selectedNodes} geminiModel={geminiModel} />
         )}
       </div>
     </div>

@@ -2,15 +2,16 @@ export interface GenerateTextParams {
   nodes: { id: string; originalText: string }[]
   prompt: string
   apiKey: string
+  model?: string
 }
 
 export async function generateAIText(params: GenerateTextParams): Promise<{ id: string; text: string }[]> {
-  const { nodes, prompt, apiKey } = params
+  const { nodes, prompt, apiKey, model = 'gemini-2.5-flash' } = params
 
   if (!nodes.length) return []
   if (!apiKey) throw new Error('Gemini API 키가 필요합니다.')
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
 
   const systemInstruction = `
 당신은 Figma 플러그인에서 동작하는 전문 UX 라이터 및 카피라이터입니다.
@@ -79,6 +80,9 @@ export async function generateAIText(params: GenerateTextParams): Promise<{ id: 
     } catch (e) {
       throw new Error('API 응답 형식이 올바르지 않습니다.')
     }
+
+    // 성공 시 사용량 증가 (background task)
+    import('./storageService').then(m => m.incrementUsage(model)).catch(console.error)
 
     return nodes.map((node, index) => ({
       id: node.id,

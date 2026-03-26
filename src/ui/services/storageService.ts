@@ -10,7 +10,31 @@ export const STORAGE_KEYS = {
   GUIDELINE_PAGE_ID: 'guideline_page_id',
   GUIDELINE_PAGE_NAME: 'guideline_page_name',
   GUIDELINE_TEXT_CACHE: 'guideline_text_cache',
+  GEMINI_MODEL: 'gemini_model',
+  USAGE_STATS: 'usage_stats',
 } as const
+
+// 제미나이 모델 저장/로드
+export function saveGeminiModel(model: string) {
+  saveStorage(STORAGE_KEYS.GEMINI_MODEL, model)
+}
+
+export async function loadGeminiModel(): Promise<string | null> {
+  return loadStorage<string>(STORAGE_KEYS.GEMINI_MODEL)
+}
+
+// 모델별 사용량 추적
+export async function getUsageStats(): Promise<Record<string, number>> {
+  const stats = await loadStorage<Record<string, number>>(STORAGE_KEYS.USAGE_STATS)
+  return stats || {}
+}
+
+export async function incrementUsage(model: string): Promise<Record<string, number>> {
+  const stats = await getUsageStats()
+  stats[model] = (stats[model] || 0) + 1
+  saveStorage(STORAGE_KEYS.USAGE_STATS, stats)
+  return stats
+}
 
 // 선택된 DB 저장/로드
 export function saveSelectedDb(dbId: string) {

@@ -9,9 +9,10 @@ import { reviewUXWriting, type ReviewResult } from '../services/uxReviewService'
 interface UXReviewProps {
   guidelinePageId: string
   guidelinePageName: string
+  geminiModel: string
 }
 
-export function UXReview({ guidelinePageId, guidelinePageName }: UXReviewProps) {
+export function UXReview({ guidelinePageId, guidelinePageName, geminiModel }: UXReviewProps) {
   // Gemini API 키
   const [geminiToken, setGeminiToken] = useState('')
 
@@ -134,6 +135,7 @@ export function UXReview({ guidelinePageId, guidelinePageName }: UXReviewProps) 
         })),
         guidelineText,
         apiKey: geminiToken,
+        model: geminiModel,
       })
 
       setReviewResults(results)
