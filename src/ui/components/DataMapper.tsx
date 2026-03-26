@@ -12,6 +12,8 @@ interface DataMapperProps {
   isConnected: boolean
   isLoading: boolean
   selectedDbName: string
+  selectedDbId: string
+  selectedDbUrl: string
   onChangeDb: () => void
 }
 
@@ -22,6 +24,8 @@ export function DataMapper({
   isConnected,
   isLoading,
   selectedDbName,
+  selectedDbId,
+  selectedDbUrl,
   onChangeDb,
 }: DataMapperProps) {
   const [applyingField, setApplyingField] = useState<string | null>(null)
@@ -33,6 +37,14 @@ export function DataMapper({
   }
 
   const propertyNames = useMemo(() => Object.keys(properties), [properties])
+
+  // Notion 데이터베이스 링크 클릭 핸들러
+  const handleNotionLinkClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!selectedDbUrl) {
+      e.preventDefault()
+      showToast('error', '선택된 데이터베이스가 없습니다.')
+    }
+  }
 
   // 컬럼 버튼 클릭 → 즉시 적용
   const handleColumnClick = (field: string) => {
@@ -106,6 +118,21 @@ export function DataMapper({
       <div className="db-info-row">
         <span className="db-name">현재 데이터 베이스 : {selectedDbName}</span>
         <button className="btn-change" onClick={onChangeDb}>변경</button>
+      </div>
+
+      {/* Notion 데이터베이스 열기 버튼 */}
+      <div className="field-group">
+        <a
+          href={selectedDbUrl || '#'}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`btn btn-secondary btn-block ${!selectedDbUrl ? 'btn-disabled' : ''}`}
+          onClick={handleNotionLinkClick}
+          title={selectedDbUrl ? 'Notion에서 데이터베이스 열기' : '선택된 데이터베이스가 없습니다'}
+          style={{ textDecoration: 'none', display: 'block', textAlign: 'center' }}
+        >
+          Notion 데이터베이스 열기
+        </a>
       </div>
 
       {/* 선택된 레이어 개수 */}

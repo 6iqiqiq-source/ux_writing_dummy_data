@@ -3,6 +3,7 @@
 // 데이터베이스 정보
 export interface NotionDatabase {
   id: string
+  url?: string
   title: Array<{ plain_text: string }>
   properties: Record<string, NotionPropertySchema>
 }

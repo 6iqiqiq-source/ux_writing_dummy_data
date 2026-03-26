@@ -40,7 +40,7 @@ export function NotionSetup({
       onClearError()
       onSearchDatabases()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // 페이지 ID 형식 검증 (32자리 hex 또는 하이픈 포함 36자리)
@@ -86,24 +86,6 @@ export function NotionSetup({
         <span style={{ fontSize: 11, color: '#666' }}>연결 상태 : 정상</span>
       </div>
 
-      {/* DB 새로고침 버튼 */}
-      <button
-        className="btn btn-primary btn-block"
-        onClick={() => {
-          onClearError()
-          onSearchDatabases()
-        }}
-        disabled={isLoading}
-      >
-        {isLoading ? (
-          <>
-            <span className="spinner" />
-            불러오는 중...
-          </>
-        ) : (
-          '데이터베이스 새로고침'
-        )}
-      </button>
 
       {/* 에러 메시지 */}
       {error && (
@@ -147,6 +129,25 @@ export function NotionSetup({
           })()}
         </div>
       )}
+
+      {/* DB 새로고침 버튼 */}
+      <button
+        className="btn btn-primary btn-block"
+        onClick={() => {
+          onClearError()
+          onSearchDatabases()
+        }}
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <>
+            <span className="spinner" />
+            불러오는 중...
+          </>
+        ) : (
+          '데이터베이스 새로고침'
+        )}
+      </button>
 
       {/* 구분선 */}
       <div style={{ borderTop: '1px solid #e5e5e5', margin: '20px 0' }} />

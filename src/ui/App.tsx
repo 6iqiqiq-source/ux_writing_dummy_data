@@ -124,6 +124,8 @@ export function App() {
                 ? getDatabaseTitle(notion.databases.find((db) => db.id === selectedDbId)!)
                 : '연결된 DB 없음'
             }
+            selectedDbId={selectedDbId}
+            selectedDbUrl={notion.databases.find((db) => db.id === selectedDbId)?.url ?? ''}
             onChangeDb={() => setActiveTab('setup')}
           />
         )}

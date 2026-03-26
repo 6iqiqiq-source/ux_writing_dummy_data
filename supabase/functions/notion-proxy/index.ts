@@ -45,16 +45,35 @@ Deno.serve(async (req) => {
         })
         break
 
-      // 접근 가능한 데이터베이스 목록 검색
-      case 'search_databases':
-        result = await fetch(`${NOTION_API_BASE}/v1/search`, {
-          method: 'POST',
-          headers: notionHeaders,
-          body: JSON.stringify({
-            filter: { property: 'object', value: 'database' },
-          }),
+      // 접근 가능한 데이터베이스 목록 검색 (페이지네이션 처리)
+      case 'search_databases': {
+        const allDatabases: unknown[] = []
+        let hasMore = true
+        let startCursor: string | undefined = undefined
+
+        // 모든 페이지 순회
+        while (hasMore) {
+          const response: Response = await fetch(`${NOTION_API_BASE}/v1/search`, {
+            method: 'POST',
+            headers: notionHeaders,
+            body: JSON.stringify({
+              filter: { property: 'object', value: 'database' },
+              start_cursor: startCursor,
+            }),
+          })
+
+          const data: any = await response.json()
+          allDatabases.push(...(data.results ?? []))
+          hasMore = data.has_more ?? false
+          startCursor = data.next_cursor
+        }
+
+        // 통합 응답 반환
+        return new Response(JSON.stringify({ results: allDatabases }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
         })
-        break
+      }
 
       // 데이터베이스 내 페이지 데이터 조회
       case 'query_database':
