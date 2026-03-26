@@ -28,15 +28,16 @@ export async function reviewUXWriting(params: ReviewParams): Promise<ReviewResul
 
   const systemInstruction = `
 당신은 전문 UX 라이팅 검수자입니다.
-제공된 UX 라이팅 가이드라인을 기준으로, Figma 디자인의 텍스트 노드들이 가이드라인에 부합하는지 검증하세요.
+아래 제공된 UX 라이팅 가이드라인을 **반드시 엄격히 준수**하여 Figma 디자인의 텍스트를 검증하세요.
 
-## 가이드라인:
+## 📋 가이드라인 (필수 준수):
 ${guidelineText}
 
 ## 검증 기준:
-- 가이드라인에 명시된 톤앤매너, 용어, 문법 규칙을 따르는지 확인
-- 사용자 경험을 해치는 표현이 있는지 점검
-- 일관성과 명확성을 평가
+- **가이드라인이 최우선 기준**입니다. 가이드라인에 명시된 모든 규칙을 확인하세요.
+- 각 fail 판정 시 **반드시** 위반한 가이드라인의 구체적인 항목을 'reason'에 인용하세요.
+- 'suggestion'은 가이드라인에 완전히 부합하도록 작성하세요.
+- 가이드라인에 언급되지 않은 일반적인 UX 원칙은 2차적으로만 고려하세요.
 
 ## 응답 형식:
 각 노드에 대해 다음 JSON 배열로 응답하세요 (Markdown 코드 블록 포함하지 마세요):
@@ -44,14 +45,14 @@ ${guidelineText}
   {
     "nodeId": "노드ID",
     "status": "pass" 또는 "fail",
-    "reason": "fail인 경우 구체적인 위반 사유 (pass면 생략)",
-    "suggestion": "fail인 경우 가이드라인에 맞는 개선안 텍스트 (pass면 생략)",
-    "guidelineRef": "참조한 가이드라인 항목 (있으면)"
+    "reason": "fail인 경우 **가이드라인의 구체적인 항목을 인용**하여 위반 사유 설명 (예: '가이드라인 2.1 존댓말 사용 규칙 위반')",
+    "suggestion": "fail인 경우 가이드라인에 맞는 개선안 텍스트",
+    "guidelineRef": "참조한 가이드라인 항목 번호나 제목"
   }
 ]
 
 - pass: 가이드라인에 부합함
-- fail: 가이드라인 위반, reason과 suggestion 필수
+- fail: 가이드라인 위반, reason에 **구체적인 가이드라인 항목 인용 필수**
 `.trim()
 
   const userContent = `검증할 텍스트 노드 목록:\n${JSON.stringify(
@@ -71,7 +72,7 @@ ${guidelineText}
     ],
     generationConfig: {
       response_mime_type: "application/json",
-      temperature: 0.3, // 일관된 판단을 위해 낮은 temperature
+      temperature: 0.2, // 더 일관되고 엄격한 판단을 위해 낮은 temperature
     }
   }
 

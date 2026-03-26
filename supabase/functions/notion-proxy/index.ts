@@ -8,6 +8,7 @@ const NOTION_VERSION = '2022-06-28'
 
 // 회사 공용 Notion Integration Token (환경 변수 사용)
 const COMPANY_NOTION_TOKEN = Deno.env.get('COMPANY_NOTION_TOKEN')
+const DEFAULT_GUIDELINE_PAGE_ID = Deno.env.get('DEFAULT_GUIDELINE_PAGE_ID') || ''
 
 Deno.serve(async (req) => {
   // CORS preflight 요청 처리
@@ -130,6 +131,64 @@ Deno.serve(async (req) => {
         }
         result = await fetch(url, { headers: notionHeaders })
         break
+      }
+
+      // 페이지/블록의 하위 블록을 재귀적으로 조회 (중첩 블록 포함)
+      case 'retrieve_blocks_recursive': {
+        const { blockId } = params as { blockId?: string }
+        if (!blockId) {
+          return new Response(
+            JSON.stringify({ error: 'retrieve_blocks_recursive 액션에는 blockId가 필요합니다' }),
+            {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 400,
+            }
+          )
+        }
+
+        // 재귀적으로 모든 블록 수집
+        const allBlocks: any[] = []
+
+        async function fetchBlocks(parentId: string) {
+          let cursor: string | undefined = undefined
+          let hasMore = true
+
+          while (hasMore) {
+            let url = `${NOTION_API_BASE}/v1/blocks/${parentId}/children?page_size=100`
+            if (cursor) url += `&start_cursor=${cursor}`
+
+            const response = await fetch(url, { headers: notionHeaders })
+            const data = await response.json()
+
+            for (const block of data.results || []) {
+              allBlocks.push(block)
+              // has_children인 경우 재귀 호출
+              if (block.has_children) {
+                await fetchBlocks(block.id)
+              }
+            }
+
+            hasMore = data.has_more
+            cursor = data.next_cursor
+          }
+        }
+
+        await fetchBlocks(blockId)
+
+        return new Response(JSON.stringify({ results: allBlocks }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        })
+      }
+
+      // 기본 설정 조회 (환경 변수)
+      case 'get_defaults': {
+        return new Response(JSON.stringify({
+          guidelinePageId: DEFAULT_GUIDELINE_PAGE_ID
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        })
       }
 
       // 페이지 정보 조회 (URL로 입력된 경우)

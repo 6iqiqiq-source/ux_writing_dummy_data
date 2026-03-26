@@ -25,29 +25,48 @@ export function extractBlockText(block: NotionBlock): string {
 
 // 블록 목록을 마크다운 형식의 가이드라인 텍스트로 변환
 export function blocksToGuidelineText(blocks: NotionBlock[]): string {
+  const unsupportedTypes = new Set<string>()
+  const supportedTypes = new Set(['heading_1', 'heading_2', 'heading_3', 'paragraph', 'bulleted_list_item', 'numbered_list_item', 'quote', 'callout', 'toggle', 'table', 'table_row'])
+
   return blocks
     .map(block => {
+      // 미지원 블록 타입 추적
+      if (!supportedTypes.has(block.type)) {
+        unsupportedTypes.add(block.type)
+      }
+
       const text = extractBlockText(block)
-      if (!text) return ''
 
       // 블록 타입별 포맷팅
       switch (block.type) {
         case 'heading_1':
-          return `# ${text}`
+          return text ? `# ${text}` : ''
         case 'heading_2':
-          return `## ${text}`
+          return text ? `## ${text}` : ''
         case 'heading_3':
-          return `### ${text}`
+          return text ? `### ${text}` : ''
         case 'bulleted_list_item':
-          return `- ${text}`
+          return text ? `- ${text}` : ''
         case 'numbered_list_item':
-          return `1. ${text}`
+          return text ? `1. ${text}` : ''
         case 'quote':
-          return `> ${text}`
+          return text ? `> ${text}` : ''
         case 'callout':
-          return `💡 ${text}`
+          return text ? `💡 ${text}` : ''
         case 'toggle':
-          return `▶ ${text}`
+          return text ? `▶ ${text}` : ''
+        case 'table_row': {
+          // 테이블 행 처리: 각 셀을 ' | '로 구분
+          const tableRowData = (block.table_row as any) || {}
+          const cells = (tableRowData.cells || []) as any[][]
+          const cellTexts = cells.map(cell =>
+            cell.map(rt => (rt.text?.content || rt.plain_text || '')).join('')
+          )
+          return cellTexts.join(' | ')
+        }
+        case 'table':
+          // 테이블 블록 자체는 텍스트 없음
+          return ''
         case 'paragraph':
         default:
           return text
@@ -55,4 +74,5 @@ export function blocksToGuidelineText(blocks: NotionBlock[]): string {
     })
     .filter(Boolean)
     .join('\n')
+    .concat(unsupportedTypes.size > 0 ? `\n\n[DEBUG] 미지원 블록 타입: ${Array.from(unsupportedTypes).join(', ')}` : '')
 }

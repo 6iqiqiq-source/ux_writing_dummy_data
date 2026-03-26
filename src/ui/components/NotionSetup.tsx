@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import type { NotionDatabase } from '../types/notion'
 import { getDatabaseTitle } from '../types/notion'
+import { callNotionProxy } from '../services/supabaseClient'
 
 interface NotionSetupProps {
   databases: NotionDatabase[]
@@ -40,6 +41,47 @@ export function NotionSetup({
       onClearError()
       onSearchDatabases()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 기본 가이드라인 페이지 자동 로드
+  useEffect(() => {
+    const loadDefaultGuideline = async () => {
+      // 이미 가이드라인이 설정되어 있으면 스킵
+      if (guidelinePageId) return
+
+      try {
+        // 1. 환경 변수에서 기본 페이지 ID 조회
+        const defaults = await callNotionProxy('get_defaults', {})
+        const defaultPageId = defaults.guidelinePageId
+
+        if (!defaultPageId) return // 기본값 없음
+
+        // 2. 페이지 정보 조회 (제목 추출)
+        const pageInfo = await callNotionProxy('retrieve_page', {
+          pageId: defaultPageId
+        })
+
+        // 3. 페이지 제목 추출 (properties에서 title 찾기)
+        let pageName = 'UX 가이드라인 문서'
+        if (pageInfo.properties) {
+          for (const [, value] of Object.entries(pageInfo.properties)) {
+            if ((value as any).type === 'title' && (value as any).title?.length > 0) {
+              pageName = (value as any).title[0].plain_text
+              break
+            }
+          }
+        }
+
+        // 4. 가이드라인 설정
+        onSelectGuideline(defaultPageId, pageName)
+      } catch (error) {
+        // 에러 무시 (기본값 없거나 페이지 접근 불가)
+        console.log('[NotionSetup] 기본 가이드라인 로드 실패:', error)
+      }
+    }
+
+    loadDefaultGuideline()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -185,6 +227,23 @@ export function NotionSetup({
                 변경
               </button>
             </div>
+
+            {/* 가이드라인 문서 바로가기 버튼 */}
+            <a
+              href={`https://www.notion.so/${guidelinePageId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary btn-block"
+              style={{
+                textDecoration: 'none',
+                display: 'block',
+                textAlign: 'center',
+                marginTop: '8px'
+              }}
+              title="Notion에서 가이드라인 문서 열기"
+            >
+              가이드라인 문서 바로가기
+            </a>
           </div>
         ) : (
           // 가이드라인 미선택: 페이지 ID 입력 UI

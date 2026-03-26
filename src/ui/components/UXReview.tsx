@@ -51,28 +51,44 @@ export function UXReview({ guidelinePageId, guidelinePageName }: UXReviewProps) 
         return
       }
 
-      // 2. Notion API로 블록 조회
-      const blocks: NotionBlock[] = []
-      let cursor: string | undefined = undefined
-      let hasMore = true
+      // 2. Notion API로 블록 조회 (중첩 블록 포함)
+      const result = await callNotionProxy('retrieve_blocks_recursive', {
+        blockId: pageId,
+      })
 
-      while (hasMore) {
-        const result = await callNotionProxy('retrieve_blocks', {
-          blockId: pageId,
-          ...(cursor && { startCursor: cursor }),
-        })
-
-        blocks.push(...(result.results || []))
-        hasMore = result.has_more
-        cursor = result.next_cursor
-      }
+      const blocks: NotionBlock[] = result.results || []
 
       // 3. 블록 → 텍스트 변환
       const text = blocksToGuidelineText(blocks)
+      console.log('[UXReview] 가이드라인 로드 완료:', {
+        blockCount: blocks.length,
+        textLength: text.length,
+        preview: text.substring(0, 200) + (text.length > 200 ? '...' : '')
+      })
       setGuidelineText(text)
       saveGuidelineTextCache(text)
     } catch (error) {
       showToast('error', error instanceof Error ? error.message : '가이드라인을 불러오는데 실패했습니다')
+    } finally {
+      setIsLoadingGuideline(false)
+    }
+  }
+
+  // 캐시 삭제 및 가이드라인 재로드
+  const handleRefreshGuideline = async () => {
+    if (!guidelinePageId) return
+
+    setIsLoadingGuideline(true)
+    try {
+      // 캐시 삭제
+      saveGuidelineTextCache('')
+      setGuidelineText('')
+
+      // 재로드
+      await loadGuidelineContent(guidelinePageId)
+      showToast('success', '가이드라인을 다시 불러왔습니다')
+    } catch (error) {
+      showToast('error', '가이드라인을 다시 불러오는데 실패했습니다')
     } finally {
       setIsLoadingGuideline(false)
     }
@@ -105,6 +121,11 @@ export function UXReview({ guidelinePageId, guidelinePageName }: UXReviewProps) 
       }
 
       // 2. Gemini API로 검증 요청
+      console.log('[UXReview] 검증 시작:', {
+        nodeCount: response.nodes.length,
+        guidelineLength: guidelineText.length,
+        guidelinePreview: guidelineText.substring(0, 100)
+      })
       const results = await reviewUXWriting({
         nodes: response.nodes.map((n: any) => ({
           id: n.id,
@@ -172,8 +193,19 @@ export function UXReview({ guidelinePageId, guidelinePageName }: UXReviewProps) 
             borderRadius: 4,
             fontSize: 11,
             color: '#333',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
           }}>
-            ✓ {guidelinePageName}
+            <span>✓ {guidelinePageName}</span>
+            <button
+              className="btn btn-secondary btn-small"
+              onClick={handleRefreshGuideline}
+              disabled={isLoadingGuideline}
+              style={{ padding: '2px 6px', fontSize: 10 }}
+            >
+              {isLoadingGuideline ? '로딩...' : '새로고침'}
+            </button>
           </div>
         ) : (
           <div style={{
