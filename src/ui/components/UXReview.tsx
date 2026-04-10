@@ -185,47 +185,41 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, gemi
 
   return (
     <div>
-      {/* 가이드라인 연결 상태 */}
+      {/* 가이드라인 문서 상태 */}
       <div className="field-group">
         <label className="field-label">가이드라인 문서</label>
-        {guidelinePageId ? (
-          <div style={{
-            padding: '6px 8px',
-            background: '#f0f7ff',
-            borderRadius: 4,
-            fontSize: 11,
-            color: '#333',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}>
-            <span>✓ {guidelinePageName}</span>
-            <button
-              className="btn btn-secondary btn-small"
-              onClick={handleRefreshGuideline}
-              disabled={isLoadingGuideline}
-            >
-              {isLoadingGuideline ? '로딩...' : '새로고침'}
-            </button>
-          </div>
-        ) : (
-          <div style={{
-            padding: '6px 8px',
-            background: '#fff9e6',
-            borderRadius: 4,
-            fontSize: 11,
-            color: '#996600',
-          }}>
-            ⚠ 설정 탭에서 가이드라인을 선택해주세요
-          </div>
-        )}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 6,
+          padding: '6px 8px',
+          background: guidelinePageId ? '#f0f7ff' : '#fff9e6',
+          borderRadius: 4,
+          fontSize: 11,
+        }}>
+          {guidelinePageId ? (
+            <>
+              <span style={{ color: '#333' }}>✓ {guidelinePageName}</span>
+              <button
+                className="btn btn-secondary btn-small"
+                onClick={handleRefreshGuideline}
+                disabled={isLoadingGuideline}
+              >
+                {isLoadingGuideline ? '로딩...' : '새로고침'}
+              </button>
+            </>
+          ) : (
+            <span style={{ color: '#996600' }}>⚠ 설정 탭에서 가이드라인 문서를 선택해주세요</span>
+          )}
+        </div>
       </div>
 
       {/* 검증 버튼 */}
       <button
         className="btn btn-primary btn-block"
         onClick={handleReview}
-        disabled={isReviewing || !guidelinePageId || !guidelineText || isLoadingGuideline}
+        disabled={isReviewing || !guidelinePageId || !guidelineText || isLoadingGuideline || !geminiToken}
         style={{ marginTop: 8 }}
       >
         {isReviewing ? (
@@ -242,6 +236,20 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, gemi
           'UX 라이팅 검증하기'
         )}
       </button>
+
+      {/* Gemini API 키 안내 */}
+      {!geminiToken && (
+        <div style={{
+          padding: '8px',
+          background: '#fff9e6',
+          borderRadius: 4,
+          fontSize: 11,
+          color: '#996600',
+          marginTop: 8,
+        }}>
+          ⚠ 설정 탭에서 Gemini API 키를 입력해주세요
+        </div>
+      )}
 
       {/* 검증 결과 요약 */}
       {reviewResults.length > 0 && (

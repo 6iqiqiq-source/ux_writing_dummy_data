@@ -34,23 +34,23 @@ export function FillTab({
   databases,
   onSelectDb,
 }: FillTabProps) {
-  const [mode, setMode] = useState<FillMode>('ai')
+  const [mode, setMode] = useState<FillMode>('data')
 
   return (
     <div>
       {/* 서브 토글 */}
       <div className="mode-toggle" style={{ marginBottom: 12 }}>
         <button
-          className={`mode-btn ${mode === 'ai' ? 'active' : ''}`}
-          onClick={() => setMode('ai')}
-        >
-          AI 생성
-        </button>
-        <button
           className={`mode-btn ${mode === 'data' ? 'active' : ''}`}
           onClick={() => setMode('data')}
         >
           Notion 데이터
+        </button>
+        <button
+          className={`mode-btn ${mode === 'ai' ? 'active' : ''}`}
+          onClick={() => setMode('ai')}
+        >
+          AI 생성
         </button>
       </div>
 
