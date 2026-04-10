@@ -1,6 +1,6 @@
 // UX 라이팅 검증 탭 컴포넌트
 import React, { useState, useEffect } from 'react'
-import { postToPlugin, waitForMessage, onPluginMessage } from '../services/pluginBridge'
+import { sendAndWait } from '../services/pluginBridge'
 import { loadGuidelinePageId, loadGuidelinePageName, loadGuidelineTextCache, saveGuidelineTextCache } from '../services/storageService'
 import { callNotionProxy } from '../services/supabaseClient'
 import { blocksToGuidelineText, type NotionBlock } from '../services/notionBlockParser'
@@ -45,7 +45,6 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, gemi
     try {
       // 1. 캐시 확인
       const cached = await loadGuidelineTextCache()
-      console.log('[guideline] pageId:', pageId, '| notionToken 길이:', notionToken?.length, '| 캐시:', cached?.length ?? 0, '자')
       if (cached) {
         setGuidelineText(cached)
         return cached
@@ -53,27 +52,24 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, gemi
 
       // 2. Notion API로 블록 조회 (중첩 블록 포함)
       // 하이픈 없는 ID를 UUID 형식으로 변환 (Notion API 요구사항)
-      const normalizedId = pageId.includes('-') ? pageId
-        : `${pageId.slice(0, 8)}-${pageId.slice(8, 12)}-${pageId.slice(12, 16)}-${pageId.slice(16, 20)}-${pageId.slice(20)}`
+      const hexId = pageId.replace(/-/g, '')
+      if (!/^[a-f0-9]{32}$/i.test(hexId)) {
+        throw new Error('올바르지 않은 페이지 ID 형식입니다')
+      }
+      const normalizedId = `${hexId.slice(0, 8)}-${hexId.slice(8, 12)}-${hexId.slice(12, 16)}-${hexId.slice(16, 20)}-${hexId.slice(20)}`
       const result = await callNotionProxy('retrieve_blocks_recursive', {
         blockId: normalizedId,
       }, notionToken)
 
-      console.log('[guideline] API 응답 블록 수:', result.results?.length ?? 0)
-
       const blocks: NotionBlock[] = result.results || []
-      // 디버깅: 블록 타입과 내용 확인
-      blocks.forEach((b, i) => console.log(`[guideline] 블록[${i}] type=${b.type}, has_children=${b.has_children}, keys=${Object.keys(b).join(',')}`))
 
       // 3. 블록 → 텍스트 변환
       const text = blocksToGuidelineText(blocks)
-      console.log('[guideline] 변환된 텍스트 길이:', text.length)
       setGuidelineText(text)
       saveGuidelineTextCache(text)
       return text
     } catch (error) {
       const msg = error instanceof Error ? error.message : '가이드라인을 불러오는데 실패했습니다'
-      console.error('[guideline] 에러:', msg)
       setGuidelineLoadError(msg)
       return ''
     } finally {
@@ -81,23 +77,17 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, gemi
     }
   }
 
-  // 캐시 삭제 및 가이드라인 재로드
+  // 캐시 삭제 및 가이드라인 재로드 (로딩 상태는 loadGuidelineContent에 위임)
   const handleRefreshGuideline = async () => {
     if (!guidelinePageId) return
 
-    setIsLoadingGuideline(true)
     try {
-      // 캐시 삭제
       saveGuidelineTextCache('')
       setGuidelineText('')
-
-      // 재로드
       await loadGuidelineContent(guidelinePageId)
       showToast('success', '가이드라인을 다시 불러왔습니다')
-    } catch (error) {
+    } catch {
       showToast('error', '가이드라인을 다시 불러오는데 실패했습니다')
-    } finally {
-      setIsLoadingGuideline(false)
     }
   }
 
@@ -129,19 +119,23 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, gemi
     setReviewResults([])
 
     try {
-      // 1. Plugin에 프레임 하위 텍스트 노드 요청
-      postToPlugin({ type: 'GET_FRAME_TEXT_NODES' })
-      const response = await waitForMessage('FRAME_TEXT_NODES', undefined, 5000)
+      // 1. Plugin에 프레임 하위 텍스트 노드 요청 (리스너 먼저 등록)
+      const response = await sendAndWait(
+        { type: 'GET_FRAME_TEXT_NODES' },
+        'FRAME_TEXT_NODES',
+        undefined,
+        5000
+      )
 
-      if (!response.nodes || response.nodes.length === 0) {
-        showToast('error', 'Figma에서 프레임을 선택해주세요')
+      // 2. 응답 타입 검증 (Array.isArray를 먼저 확인)
+      if (!Array.isArray(response.nodes)) {
+        showToast('error', '플러그인 응답 형식이 올바르지 않습니다')
         setIsReviewing(false)
         return
       }
 
-      // 2. 응답 타입 검증
-      if (!Array.isArray(response.nodes)) {
-        showToast('error', '플러그인 응답 형식이 올바르지 않습니다')
+      if (response.nodes.length === 0) {
+        showToast('error', 'Figma에서 프레임을 선택해주세요')
         setIsReviewing(false)
         return
       }
@@ -180,10 +174,13 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, gemi
   // 개선안 적용
   const handleApplySuggestion = async (nodeId: string, suggestion: string, index: number) => {
     try {
-      postToPlugin({ type: 'APPLY_DATA', nodeId, text: suggestion })
-
-      // APPLY_RESULT 메시지 수신 확인 (3초 타임아웃)
-      const result = await waitForMessage('APPLY_RESULT', undefined, 3000)
+      // APPLY_RESULT 메시지 수신 확인 (리스너 먼저 등록, 3초 타임아웃)
+      const result = await sendAndWait(
+        { type: 'APPLY_DATA', nodeId, text: suggestion },
+        'APPLY_RESULT',
+        undefined,
+        3000
+      )
 
       if (result.success === false) {
         showToast('error', result.error || '적용에 실패했습니다')

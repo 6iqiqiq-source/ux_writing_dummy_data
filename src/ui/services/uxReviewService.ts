@@ -85,33 +85,42 @@ ${guidelineText}
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
   try {
-    // 503 등 일시적 오류에 대한 재시도 (최대 2회)
-    let response: Response | null = null
-    for (let attempt = 0; attempt < 3; attempt++) {
-      response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      })
+    // 503 등 일시적 오류에 대한 재시도 (최대 2회, abort 신호 감지)
+    const fetchWithRetry = async (): Promise<Response> => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        })
 
-      if (response.status === 503 && attempt < 2) {
-        // 서버 과부하 시 잠시 대기 후 재시도
-        await new Promise(r => setTimeout(r, 2000 * (attempt + 1)))
-        continue
+        if (res.status === 503 && attempt < 2) {
+          await new Promise<void>((resolve, reject) => {
+            const delay = setTimeout(resolve, 2000 * (attempt + 1))
+            controller.signal.addEventListener('abort', () => {
+              clearTimeout(delay)
+              reject(new DOMException('The operation was aborted.', 'AbortError'))
+            }, { once: true })
+          })
+          continue
+        }
+        return res
       }
-      break
+      throw new Error('재시도 횟수 초과')
     }
 
-    if (!response!.ok) {
-      const errData = await response!.json()
-      throw new Error(errData.error?.message || `Gemini API 호출에 실패했습니다. (${response!.status})`)
+    const response = await fetchWithRetry()
+
+    if (!response.ok) {
+      const errData = await response.json()
+      throw new Error(errData.error?.message || `Gemini API 호출에 실패했습니다. (${response.status})`)
     }
 
-    const data = await response!.json()
+    const data = await response.json()
     const contentText = data.candidates?.[0]?.content?.parts?.[0]?.text
     if (!contentText) {
       throw new Error('응답을 파싱할 수 없습니다.')

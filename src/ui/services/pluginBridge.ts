@@ -52,6 +52,19 @@ export function waitForMessage<T extends PluginMessage['type']>(
   })
 }
 
+// 메시지 전송 + 응답 대기를 원자적으로 수행 (경쟁 조건 방지)
+// 리스너를 먼저 등록한 뒤 메시지를 전송하여 빠른 응답을 놓치지 않음
+export function sendAndWait<T extends PluginMessage['type']>(
+  msg: UIMessage,
+  responseType: T,
+  filter?: (msg: Extract<PluginMessage, { type: T }>) => boolean,
+  timeoutMs = 10000
+): Promise<Extract<PluginMessage, { type: T }>> {
+  const promise = waitForMessage(responseType, filter, timeoutMs)
+  postToPlugin(msg)
+  return promise
+}
+
 // 선택된 텍스트 노드 목록 요청
 export async function requestSelection() {
   postToPlugin({ type: 'GET_SELECTION' })

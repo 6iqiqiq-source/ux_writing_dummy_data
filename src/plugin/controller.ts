@@ -6,6 +6,24 @@ import type { UIMessage, TextNodeInfo, PluginMessage } from './types'
 
 figma.showUI(__html__, { width: 360, height: 540 })
 
+// 텍스트 노드의 폰트를 로드 (mixed font일 경우 중복 로드 방지)
+async function loadFontsForNode(node: TextNode) {
+  if (node.fontName === figma.mixed) {
+    const loaded = new Set<string>()
+    const len = node.characters.length
+    for (let i = 0; i < len; i++) {
+      const font = node.getRangeFontName(i, i + 1) as FontName
+      const key = `${font.family}::${font.style}`
+      if (!loaded.has(key)) {
+        await figma.loadFontAsync(font)
+        loaded.add(key)
+      }
+    }
+  } else {
+    await figma.loadFontAsync(node.fontName as FontName)
+  }
+}
+
 // 현재 선택된 텍스트 노드 목록 추출
 function getSelectedTextNodes(): TextNodeInfo[] {
   return figma.currentPage.selection
@@ -76,16 +94,7 @@ figma.ui.onmessage = async (msg: UIMessage) => {
           return
         }
 
-        // Mixed font 처리: 노드에 여러 폰트가 섞여있으면 전체 범위의 폰트를 로딩
-        if (node.fontName === figma.mixed) {
-          const len = node.characters.length
-          for (let i = 0; i < len; i++) {
-            await figma.loadFontAsync(node.getRangeFontName(i, i + 1) as FontName)
-          }
-        } else {
-          await figma.loadFontAsync(node.fontName as FontName)
-        }
-
+        await loadFontsForNode(node)
         node.characters = msg.text
         const response: PluginMessage = { type: 'APPLY_RESULT', success: true }
         figma.ui.postMessage(response)
@@ -108,15 +117,7 @@ figma.ui.onmessage = async (msg: UIMessage) => {
           const node = figma.getNodeById(mappings[i].nodeId)
           if (!node || node.type !== 'TEXT') continue
 
-          if (node.fontName === figma.mixed) {
-            const len = node.characters.length
-            for (let j = 0; j < len; j++) {
-              await figma.loadFontAsync(node.getRangeFontName(j, j + 1) as FontName)
-            }
-          } else {
-            await figma.loadFontAsync(node.fontName as FontName)
-          }
-
+          await loadFontsForNode(node)
           node.characters = mappings[i].text
         } catch {
           // 개별 노드 실패 시 건너뛰고 계속 진행

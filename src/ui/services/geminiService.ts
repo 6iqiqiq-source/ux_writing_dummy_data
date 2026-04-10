@@ -61,15 +61,37 @@ export async function generateAIText(params: GenerateTextParams): Promise<{ id: 
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    })
+    // 503 등 일시적 오류에 대한 재시도 (최대 2회, abort 신호 감지)
+    const fetchWithRetry = async (): Promise<Response> => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        })
+
+        if (res.status === 503 && attempt < 2) {
+          // 대기 중에도 abort 신호를 감지
+          await new Promise<void>((resolve, reject) => {
+            const delay = setTimeout(resolve, 2000 * (attempt + 1))
+            controller.signal.addEventListener('abort', () => {
+              clearTimeout(delay)
+              reject(new DOMException('The operation was aborted.', 'AbortError'))
+            }, { once: true })
+          })
+          continue
+        }
+        return res
+      }
+      // 타입 안전: 루프가 반드시 return하지만 TypeScript를 위해
+      throw new Error('재시도 횟수 초과')
+    }
+
+    const response = await fetchWithRetry()
 
     if (!response.ok) {
       const errData = await response.json()

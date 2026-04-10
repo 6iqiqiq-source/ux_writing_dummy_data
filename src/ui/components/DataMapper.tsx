@@ -4,6 +4,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import type { TextNodeInfo } from '../../plugin/types'
 import type { NotionPage, NotionDatabase } from '../types/notion'
 import { extractPropertyValue, getDatabaseTitle } from '../types/notion'
+import { sendAndWait } from '../services/pluginBridge'
 
 interface DataMapperProps {
   selectedNodes: TextNodeInfo[]
@@ -60,8 +61,8 @@ export function DataMapper({
     }
   }
 
-  // 컬럼 버튼 클릭 → 즉시 적용
-  const handleColumnClick = (field: string) => {
+  // 컬럼 버튼 클릭 → 적용 후 결과 대기
+  const handleColumnClick = async (field: string) => {
     if (selectedNodes.length === 0 || pages.length === 0) return
 
     setApplyingField(field)
@@ -86,15 +87,19 @@ export function DataMapper({
         return
       }
 
-      // Figma plugin 메시지로 전송
-      parent.postMessage({
-        pluginMessage: {
-          type: 'BULK_FILL',
-          mappings,
-        },
-      }, '*')
+      // Figma plugin 메시지로 전송 후 결과 대기 (리스너 먼저 등록)
+      const result = await sendAndWait(
+        { type: 'BULK_FILL', mappings },
+        'APPLY_RESULT',
+        undefined,
+        10000
+      )
 
-      showToast('success', `${mappings.length}개 레이어에 데이터를 적용했습니다`)
+      if (result.success) {
+        showToast('success', `${mappings.length}개 레이어에 데이터를 적용했습니다`)
+      } else {
+        showToast('error', result.error || '적용에 실패했습니다')
+      }
 
     } catch {
       showToast('error', '적용 중 오류가 발생했습니다.')

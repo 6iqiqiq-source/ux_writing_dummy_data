@@ -1,5 +1,5 @@
 // 메인 앱 컴포넌트 - 탭 네비게이션
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { NotionSetup } from './components/NotionSetup'
 import { UXReview } from './components/UXReview'
 import { FillTab } from './components/FillTab'
@@ -27,53 +27,38 @@ export function App() {
   const notion = useNotionData()
   const { selectedNodes } = useSelection()
 
-  // 초기화: 캐시된 DB 목록 → 저장된 DB ID로 바로 데이터 쿼리
+  // 초기화: 캐시된 설정을 병렬 로드 → 저장된 DB ID로 데이터 쿼리
   useEffect(() => {
     let mounted = true
     const initStorage = async () => {
-      // Notion 토큰 로드
-      const savedToken = await loadNotionToken()
-      if (savedToken && mounted) {
-        setNotionToken(savedToken)
-      }
+      // 독립적인 저장소 로드를 병렬 실행
+      const [savedToken, savedGeminiToken, cachedDbs, dbId, pageId, pageName, model, stats] = await Promise.all([
+        loadNotionToken(),
+        loadGeminiToken(),
+        loadDatabases<NotionDatabase>(),
+        loadSelectedDb(),
+        loadGuidelinePageId(),
+        loadGuidelinePageName(),
+        loadGeminiModel(),
+        getUsageStats(),
+      ])
 
-      // Gemini 토큰 로드
-      const savedGeminiToken = await loadGeminiToken()
-      if (savedGeminiToken && mounted) {
-        setGeminiToken(savedGeminiToken)
-      }
+      if (!mounted) return
 
-      // 캐시된 DB 목록 로드
-      const cachedDbs = await loadDatabases<NotionDatabase>()
-      if (cachedDbs && cachedDbs.length > 0 && mounted) {
-        notion.setDatabasesDirect(cachedDbs)
-      }
-
-      // 저장된 DB ID로 바로 데이터 쿼리 (네트워크 요청 1회만)
-      const dbId = await loadSelectedDb()
-      if (dbId && savedToken && mounted) {
-        setSelectedDbId(dbId)
-        await notion.queryDatabase(dbId, savedToken)
-      }
-
-      // 가이드라인 페이지 로드
-      const pageId = await loadGuidelinePageId()
-      const pageName = await loadGuidelinePageName()
-      if (pageId && mounted) {
+      if (savedToken) setNotionToken(savedToken)
+      if (savedGeminiToken) setGeminiToken(savedGeminiToken)
+      if (cachedDbs && cachedDbs.length > 0) notion.setDatabasesDirect(cachedDbs)
+      if (pageId) {
         setGuidelinePageId(pageId)
         setGuidelinePageName(pageName ?? '가이드라인 문서')
       }
+      if (model) setGeminiModel(model)
+      if (stats) setUsageStats(stats)
 
-      // 모델 설정 로드
-      const model = await loadGeminiModel()
-      if (model && mounted) {
-        setGeminiModel(model)
-      }
-
-      // 사용량 통계 로드
-      const stats = await getUsageStats()
-      if (stats && mounted) {
-        setUsageStats(stats)
+      // 저장된 DB ID로 바로 데이터 쿼리 (네트워크 요청 1회만)
+      if (dbId && savedToken) {
+        setSelectedDbId(dbId)
+        await notion.queryDatabase(dbId, savedToken)
       }
 
       // 토큰 없으면 설정 탭으로 이동
@@ -93,18 +78,39 @@ export function App() {
   ]
 
   // 가이드라인 페이지 선택 핸들러
-  const handleSelectGuideline = (pageId: string, pageName: string) => {
+  const handleSelectGuideline = useCallback((pageId: string, pageName: string) => {
     setGuidelinePageId(pageId)
     setGuidelinePageName(pageName)
     saveGuidelinePageId(pageId)
     saveGuidelinePageName(pageName)
-  }
+  }, [])
 
   // 모델 선택 핸들러
-  const handleSelectModel = (model: string) => {
+  const handleSelectModel = useCallback((model: string) => {
     setGeminiModel(model)
     saveGeminiModel(model)
-  }
+  }, [])
+
+  // Notion 토큰 저장 핸들러
+  const handleSaveNotionToken = useCallback((token: string) => {
+    setNotionToken(token)
+    saveNotionToken(token)
+  }, [])
+
+  // Gemini 토큰 저장 핸들러
+  const handleSaveGeminiToken = useCallback((token: string) => {
+    setGeminiToken(token)
+    saveGeminiToken(token)
+  }, [])
+
+  // DB 선택 핸들러 (설정/채우기 탭 공용)
+  const handleSelectDb = useCallback((dbId: string) => {
+    setSelectedDbId(dbId)
+    saveSelectedDb(dbId)
+    if (dbId) {
+      notion.queryDatabase(dbId, notionToken)
+    }
+  }, [notionToken, notion.queryDatabase])
 
   return (
     <div>
@@ -124,24 +130,12 @@ export function App() {
         {activeTab === 'setup' && (
           <NotionSetup
             notionToken={notionToken}
-            onSaveNotionToken={(token) => {
-              setNotionToken(token)
-              saveNotionToken(token)
-            }}
+            onSaveNotionToken={handleSaveNotionToken}
             geminiToken={geminiToken}
-            onSaveGeminiToken={(token) => {
-              setGeminiToken(token)
-              saveGeminiToken(token)
-            }}
+            onSaveGeminiToken={handleSaveGeminiToken}
             databases={notion.databases}
             selectedDbId={selectedDbId}
-            onSelectDb={(dbId) => {
-              setSelectedDbId(dbId)
-              saveSelectedDb(dbId)
-              if (dbId) {
-                notion.queryDatabase(dbId, notionToken)
-              }
-            }}
+            onSelectDb={handleSelectDb}
             isLoading={notion.isLoading}
             error={notion.error}
             onSearchDatabases={() => notion.searchDatabases(notionToken)}
@@ -177,13 +171,7 @@ export function App() {
             selectedDbId={selectedDbId}
             selectedDbUrl={notion.databases.find((db) => db.id === selectedDbId)?.url ?? ''}
             databases={notion.databases}
-            onSelectDb={(dbId) => {
-              setSelectedDbId(dbId)
-              saveSelectedDb(dbId)
-              if (dbId) {
-                notion.queryDatabase(dbId, notionToken)
-              }
-            }}
+            onSelectDb={handleSelectDb}
           />
         )}
       </div>

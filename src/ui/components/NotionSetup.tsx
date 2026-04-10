@@ -4,6 +4,12 @@ import React, { useEffect, useRef, useState } from 'react'
 import type { NotionDatabase } from '../types/notion'
 import { getDatabaseTitle } from '../types/notion'
 
+const MODEL_OPTIONS = [
+  { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash', dailyLimit: 5 },
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', dailyLimit: 10 },
+  { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite', dailyLimit: 20 },
+] as const
+
 interface NotionSetupProps {
   notionToken: string
   onSaveNotionToken: (token: string) => void
@@ -405,46 +411,36 @@ export function NotionSetup({
                 {/* AI 모델 선택 */}
                 <div className="field-group" style={{ marginBottom: 16 }}>
                   <label className="field-label">AI 모델</label>
-                  {(() => {
-                    const modelOptions = [
-                      { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash' },
-                      { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-                      { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
-                    ]
-                    const selectedLabel = modelOptions.find((m) => m.value === geminiModel)?.label ?? 'Gemini 3 Flash'
-                    return (
-                      <div className="custom-select-wrapper" ref={modelDropdownRef}>
-                        <button
-                          type="button"
-                          className={`custom-select-trigger field-select ${isModelDropdownOpen ? 'open' : ''}`}
-                          onClick={() => setIsModelDropdownOpen((prev) => !prev)}
-                        >
-                          <span>{selectedLabel}</span>
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 12 12"
-                            style={{ transform: isModelDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}
+                    <div className="custom-select-wrapper" ref={modelDropdownRef}>
+                    <button
+                      type="button"
+                      className={`custom-select-trigger field-select ${isModelDropdownOpen ? 'open' : ''}`}
+                      onClick={() => setIsModelDropdownOpen((prev) => !prev)}
+                    >
+                      <span>{MODEL_OPTIONS.find((m) => m.value === geminiModel)?.label ?? 'Gemini 3 Flash'}</span>
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 12 12"
+                        style={{ transform: isModelDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}
+                      >
+                        <path fill="#666" d="M6 8L1 3h10z" />
+                      </svg>
+                    </button>
+                    {isModelDropdownOpen && (
+                      <ul className="custom-select-list">
+                        {MODEL_OPTIONS.map((m) => (
+                          <li
+                            key={m.value}
+                            className={`custom-select-item ${geminiModel === m.value ? 'selected' : ''}`}
+                            onClick={() => { onSelectModel(m.value); setIsModelDropdownOpen(false) }}
                           >
-                            <path fill="#666" d="M6 8L1 3h10z" />
-                          </svg>
-                        </button>
-                        {isModelDropdownOpen && (
-                          <ul className="custom-select-list">
-                            {modelOptions.map((m) => (
-                              <li
-                                key={m.value}
-                                className={`custom-select-item ${geminiModel === m.value ? 'selected' : ''}`}
-                                onClick={() => { onSelectModel(m.value); setIsModelDropdownOpen(false) }}
-                              >
-                                {m.label}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    )
-                  })()}
+                            {m.label}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
 
                 {/* 사용량 통계 (접기/펼치기) */}
@@ -476,18 +472,14 @@ export function NotionSetup({
                     border: '1px solid #eee',
                   }}>
                     <div style={{ fontSize: 10, color: '#999', marginBottom: 10 }}>매일 자정 자동 초기화</div>
-                    {[
-                      { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', limit: 5 },
-                      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', limit: 10 },
-                      { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', limit: 20 },
-                    ].map(model => {
-                      const usage = usageStats[model.id] || 0
-                      const percentage = Math.min((usage / model.limit) * 100, 100)
+                    {MODEL_OPTIONS.map(model => {
+                      const usage = usageStats[model.value] || 0
+                      const percentage = Math.min((usage / model.dailyLimit) * 100, 100)
                       return (
-                        <div key={model.id} style={{ marginBottom: 10 }}>
+                        <div key={model.value} style={{ marginBottom: 10 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 4 }}>
-                            <span style={{ color: '#666' }}>{model.name}</span>
-                            <span style={{ fontWeight: 500 }}>{usage} / {model.limit}</span>
+                            <span style={{ color: '#666' }}>{model.label}</span>
+                            <span style={{ fontWeight: 500 }}>{usage} / {model.dailyLimit}</span>
                           </div>
                           <div style={{ height: 4, background: '#e5e5e5', borderRadius: 2, overflow: 'hidden' }}>
                             <div style={{

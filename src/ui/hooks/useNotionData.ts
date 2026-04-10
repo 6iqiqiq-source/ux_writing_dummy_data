@@ -15,7 +15,6 @@ interface UseNotionDataReturn {
   error: string | null
 
   // 액션
-  validateToken: (notionToken: string) => Promise<boolean>
   searchDatabases: (notionToken: string) => Promise<void>
   queryDatabase: (databaseId: string, notionToken: string) => Promise<void>
   setDatabasesDirect: (dbs: NotionDatabase[]) => void
@@ -30,23 +29,6 @@ export function useNotionData(): UseNotionDataReturn {
   >({})
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // 토큰 유효성 검증
-  const validateToken = useCallback(async (notionToken: string): Promise<boolean> => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      await callNotionProxy('validate_token', {}, notionToken)
-      return true
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : '토큰 검증에 실패했습니다'
-      )
-      return false
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
 
   // 데이터베이스 목록 검색
   const searchDatabases = useCallback(async (notionToken: string) => {
@@ -121,7 +103,6 @@ export function useNotionData(): UseNotionDataReturn {
     properties,
     isLoading,
     error,
-    validateToken,
     searchDatabases,
     queryDatabase,
     setDatabasesDirect,

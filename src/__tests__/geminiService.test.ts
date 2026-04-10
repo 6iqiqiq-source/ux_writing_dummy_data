@@ -64,7 +64,7 @@ describe('generateAIText - 에러 처리 (P0 수정 검증)', () => {
     mockFetch.mockResolvedValueOnce(makeGeminiResponse(['하나만']))
 
     await expect(generateAIText({ nodes: NODES, prompt: 'test', apiKey: 'key' }))
-      .rejects.toThrow('API 응답 형식이 올바르지 않습니다')
+      .rejects.toThrow('API 응답 개수가 요청 개수와 다릅니다.')
   })
 
   test('응답이 JSON 배열이 아닐 때 에러 throw', async () => {
@@ -76,7 +76,7 @@ describe('generateAIText - 에러 처리 (P0 수정 검증)', () => {
     })
 
     await expect(generateAIText({ nodes: NODES, prompt: 'test', apiKey: 'key' }))
-      .rejects.toThrow('API 응답 형식이 올바르지 않습니다')
+      .rejects.toThrow('API 응답이 배열 형식이 아닙니다.')
   })
 
   test('API 에러 응답(4xx) 시 에러 메시지 throw', async () => {

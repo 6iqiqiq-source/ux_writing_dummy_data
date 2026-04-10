@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { TextNodeInfo } from '../../plugin/types'
 import { generateAIText } from '../services/geminiService'
+import { sendAndWait } from '../services/pluginBridge'
 
 interface Props {
   selectedNodes: TextNodeInfo[]
@@ -48,16 +49,21 @@ export function AIGenerator({ selectedNodes, geminiModel, geminiToken }: Props) 
         return
       }
 
-      // Figma plugin 메시지로 전송
-      parent.postMessage({
-        pluginMessage: {
-          type: 'BULK_FILL',
-          mappings: generatedMappings.map(m => ({ nodeId: m.id, text: m.text }))
-        }
-      }, '*')
+      // Figma plugin 메시지로 전송 후 결과 대기 (리스너 먼저 등록)
+      const mappings = generatedMappings.map(m => ({ nodeId: m.id, text: m.text }))
+      const result = await sendAndWait(
+        { type: 'BULK_FILL', mappings },
+        'APPLY_RESULT',
+        undefined,
+        10000
+      )
 
-      setPrompt('') // 프롬프트 초기화
-      showToast('success', `${selectedNodes.length}개 레이어에 텍스트를 생성했습니다`)
+      if (result.success) {
+        setPrompt('')
+        showToast('success', `${selectedNodes.length}개 레이어에 텍스트를 생성했습니다`)
+      } else {
+        showToast('error', result.error || '텍스트 적용에 실패했습니다')
+      }
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.')
     } finally {
