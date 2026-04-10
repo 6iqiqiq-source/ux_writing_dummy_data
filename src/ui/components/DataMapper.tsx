@@ -69,15 +69,14 @@ export function DataMapper({
     try {
       const mappings: Array<{ nodeId: string; text: string }> = []
 
-      for (const node of selectedNodes) {
-        const pageIndex = Math.floor(Math.random() * pages.length)
-        const page = pages[pageIndex]
+      for (let i = 0; i < selectedNodes.length; i++) {
+        const page = pages[i % pages.length]
         const value = page.properties[field]
           ? extractPropertyValue(page.properties[field])
           : ''
 
         if (value) {
-          mappings.push({ nodeId: node.id, text: value })
+          mappings.push({ nodeId: selectedNodes[i].id, text: value })
         }
       }
 
@@ -139,7 +138,7 @@ export function DataMapper({
           >
             <span>
               {selectedDbId
-                ? getDatabaseTitle(databases.find((d) => d.id === selectedDbId)!)
+                ? getDatabaseTitle(databases.find((d) => d.id === selectedDbId) ?? databases[0])
                 : '선택해주세요'}
             </span>
             <svg

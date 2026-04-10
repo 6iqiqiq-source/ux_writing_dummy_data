@@ -249,7 +249,7 @@ export function NotionSetup({
                   >
                     <span>
                       {selectedDbId
-                        ? getDatabaseTitle(databases.find((d) => d.id === selectedDbId)!)
+                        ? getDatabaseTitle(databases.find((d) => d.id === selectedDbId) ?? databases[0])
                         : '선택해주세요'}
                     </span>
                     <svg
@@ -335,9 +335,8 @@ export function NotionSetup({
         )}
       </div>
 
-      {/* ── 섹션 2, 3: 토큰 저장 후에만 표시 ── */}
-      {notionToken && !isEditingToken && (
-        <>
+      {/* ── 섹션 2, 3: 항상 표시 ── */}
+      <>
           {/* 섹션 2: AI 기능 설정 (선택) */}
           <div className="settings-section settings-section--optional">
             <div className="settings-section-header">
@@ -584,8 +583,7 @@ export function NotionSetup({
               )}
             </div>
           </div>
-        </>
-      )}
+      </>
 
       {/* 하단 데이터 전송 고지 (항상 표시) */}
       <div className="settings-notice">

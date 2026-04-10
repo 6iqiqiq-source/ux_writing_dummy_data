@@ -85,10 +85,17 @@ export async function generateAIText(params: GenerateTextParams): Promise<{ id: 
     let generatedTexts: string[] = []
     try {
       generatedTexts = JSON.parse(contentText)
-      if (!Array.isArray(generatedTexts) || generatedTexts.length !== nodes.length) {
-         throw new Error('API 응답 형식이 올바르지 않습니다.')
+      if (!Array.isArray(generatedTexts)) {
+        throw new Error('API 응답이 배열 형식이 아닙니다.')
+      }
+      if (generatedTexts.length !== nodes.length) {
+        throw new Error('API 응답 개수가 요청 개수와 다릅니다.')
+      }
+      if (!generatedTexts.every(t => typeof t === 'string')) {
+        throw new Error('API 응답에 문자열이 아닌 항목이 포함되어 있습니다.')
       }
     } catch (e) {
+      if (e instanceof Error) throw e
       throw new Error('API 응답 형식이 올바르지 않습니다.')
     }
 

@@ -111,13 +111,24 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, gemi
         return
       }
 
-      // 2. Gemini API로 검증 요청
+      // 2. 응답 타입 검증
+      if (!Array.isArray(response.nodes)) {
+        showToast('error', '플러그인 응답 형식이 올바르지 않습니다')
+        setIsReviewing(false)
+        return
+      }
+
+      // 3. Gemini API로 검증 요청
       const results = await reviewUXWriting({
-        nodes: response.nodes.map((n: { id: string; name: string; characters: string }) => ({
-          id: n.id,
-          name: n.name,
-          originalText: n.characters,
-        })),
+        nodes: response.nodes
+          .filter((n: { id: string; name: string; characters: string }) =>
+            typeof n.id === 'string' && typeof n.characters === 'string'
+          )
+          .map((n: { id: string; name: string; characters: string }) => ({
+            id: n.id,
+            name: n.name ?? '',
+            originalText: n.characters,
+          })),
         guidelineText,
         apiKey: geminiToken,
         model: geminiModel,
@@ -143,10 +154,14 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, gemi
     try {
       postToPlugin({ type: 'APPLY_DATA', nodeId, text: suggestion })
 
-      // 대기 시간 추가 (Plugin이 처리할 시간)
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // APPLY_RESULT 메시지 수신 확인 (3초 타임아웃)
+      const result = await waitForMessage('APPLY_RESULT', undefined, 3000)
 
-      // 해당 항목을 applied 상태로 표시
+      if (result.success === false) {
+        showToast('error', result.error || '적용에 실패했습니다')
+        return
+      }
+
       setReviewResults(prev =>
         prev.map((r, i) =>
           i === index ? { ...r, applied: true } : r

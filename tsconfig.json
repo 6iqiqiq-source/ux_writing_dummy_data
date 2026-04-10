@@ -8,7 +8,8 @@
     "esModuleInterop": true,
     "rootDir": "./src",
     "outDir": "./dist",
-    "typeRoots": ["./node_modules/@types"]
+    "typeRoots": ["./node_modules/@types", "./node_modules/@figma"],
+    "skipLibCheck": true
   },
   "include": ["src/**/*"],
   "exclude": ["src/__tests__"]
