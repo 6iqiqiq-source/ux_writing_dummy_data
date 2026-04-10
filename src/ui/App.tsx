@@ -1,21 +1,22 @@
 // 메인 앱 컴포넌트 - 탭 네비게이션
 import React, { useState, useEffect } from 'react'
 import { NotionSetup } from './components/NotionSetup'
-import { DataMapper } from './components/DataMapper'
-import { AIGenerator } from './components/AIGenerator'
 import { UXReview } from './components/UXReview'
+import { FillTab } from './components/FillTab'
 import { useNotionData } from './hooks/useNotionData'
 import { useSelection } from './hooks/useSelection'
 import { getDatabaseTitle } from './types/notion'
 import type { NotionDatabase } from './types/notion'
-import { loadSelectedDb, saveSelectedDb, saveDatabases, loadDatabases, loadGuidelinePageId, loadGuidelinePageName, saveGuidelinePageId, saveGuidelinePageName, loadGeminiModel, saveGeminiModel, getUsageStats } from './services/storageService'
+import { loadSelectedDb, saveSelectedDb, loadDatabases, loadGuidelinePageId, loadGuidelinePageName, saveGuidelinePageId, saveGuidelinePageName, loadGeminiModel, saveGeminiModel, getUsageStats, loadNotionToken, saveNotionToken, loadGeminiToken, saveGeminiToken } from './services/storageService'
 import './styles.css'
 
-type Tab = 'setup' | 'data' | 'ai' | 'review'
+type Tab = 'setup' | 'fill' | 'review'
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('ai')
+  const [activeTab, setActiveTab] = useState<Tab>('fill')
   const [selectedDbId, setSelectedDbId] = useState('')
+  const [notionToken, setNotionToken] = useState('')
+  const [geminiToken, setGeminiToken] = useState('')
 
   // 가이드라인 상태
   const [guidelinePageId, setGuidelinePageId] = useState('')
@@ -30,6 +31,18 @@ export function App() {
   useEffect(() => {
     let mounted = true
     const initStorage = async () => {
+      // Notion 토큰 로드
+      const savedToken = await loadNotionToken()
+      if (savedToken && mounted) {
+        setNotionToken(savedToken)
+      }
+
+      // Gemini 토큰 로드
+      const savedGeminiToken = await loadGeminiToken()
+      if (savedGeminiToken && mounted) {
+        setGeminiToken(savedGeminiToken)
+      }
+
       // 캐시된 DB 목록 로드
       const cachedDbs = await loadDatabases<NotionDatabase>()
       if (cachedDbs && cachedDbs.length > 0 && mounted) {
@@ -38,9 +51,9 @@ export function App() {
 
       // 저장된 DB ID로 바로 데이터 쿼리 (네트워크 요청 1회만)
       const dbId = await loadSelectedDb()
-      if (dbId && mounted) {
+      if (dbId && savedToken && mounted) {
         setSelectedDbId(dbId)
-        await notion.queryDatabase(dbId)
+        await notion.queryDatabase(dbId, savedToken)
       }
 
       // 가이드라인 페이지 로드
@@ -62,6 +75,11 @@ export function App() {
       if (stats && mounted) {
         setUsageStats(stats)
       }
+
+      // 토큰 없으면 설정 탭으로 이동
+      if (!savedToken && mounted) {
+        setActiveTab('setup')
+      }
     }
     initStorage()
     return () => { mounted = false }
@@ -69,9 +87,8 @@ export function App() {
   }, [])
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'ai', label: 'AI 생성' },
+    { key: 'fill', label: '텍스트 채우기' },
     { key: 'review', label: '검증' },
-    { key: 'data', label: '데이터' },
     { key: 'setup', label: '설정' },
   ]
 
@@ -106,18 +123,28 @@ export function App() {
       <div className="tab-content">
         {activeTab === 'setup' && (
           <NotionSetup
+            notionToken={notionToken}
+            onSaveNotionToken={(token) => {
+              setNotionToken(token)
+              saveNotionToken(token)
+            }}
+            geminiToken={geminiToken}
+            onSaveGeminiToken={(token) => {
+              setGeminiToken(token)
+              saveGeminiToken(token)
+            }}
             databases={notion.databases}
             selectedDbId={selectedDbId}
             onSelectDb={(dbId) => {
               setSelectedDbId(dbId)
               saveSelectedDb(dbId)
               if (dbId) {
-                notion.queryDatabase(dbId)
+                notion.queryDatabase(dbId, notionToken)
               }
             }}
             isLoading={notion.isLoading}
             error={notion.error}
-            onSearchDatabases={() => notion.searchDatabases()}
+            onSearchDatabases={() => notion.searchDatabases(notionToken)}
             onClearError={notion.clearError}
             guidelinePageId={guidelinePageId}
             guidelinePageName={guidelinePageName}
@@ -133,29 +160,31 @@ export function App() {
             guidelinePageId={guidelinePageId}
             guidelinePageName={guidelinePageName}
             geminiModel={geminiModel}
+            geminiToken={geminiToken}
+            notionToken={notionToken}
           />
         )}
 
-        {activeTab === 'data' && (
-          <DataMapper
+        {activeTab === 'fill' && (
+          <FillTab
             selectedNodes={selectedNodes}
+            geminiModel={geminiModel}
+            geminiToken={geminiToken}
             pages={notion.pages}
             properties={notion.properties}
             isConnected={!!selectedDbId && notion.pages.length > 0}
             isLoading={notion.isLoading}
-            selectedDbName={
-              notion.databases.find((db) => db.id === selectedDbId)
-                ? getDatabaseTitle(notion.databases.find((db) => db.id === selectedDbId)!)
-                : '연결된 DB 없음'
-            }
             selectedDbId={selectedDbId}
             selectedDbUrl={notion.databases.find((db) => db.id === selectedDbId)?.url ?? ''}
-            onChangeDb={() => setActiveTab('setup')}
+            databases={notion.databases}
+            onSelectDb={(dbId) => {
+              setSelectedDbId(dbId)
+              saveSelectedDb(dbId)
+              if (dbId) {
+                notion.queryDatabase(dbId, notionToken)
+              }
+            }}
           />
-        )}
-
-        {activeTab === 'ai' && (
-          <AIGenerator selectedNodes={selectedNodes} geminiModel={geminiModel} />
         )}
       </div>
     </div>

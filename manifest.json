@@ -7,8 +7,9 @@
   "editorType": ["figma"],
   "networkAccess": {
     "allowedDomains": [
-      "https://*.supabase.co",
+      "https://mottzvgkpvirwynzlzjq.supabase.co",
       "https://generativelanguage.googleapis.com"
-    ]
+    ],
+    "reasoning": "Notion 데이터베이스 연동(Supabase 프록시 경유) 및 AI 텍스트 생성(Gemini API)에 필요합니다"
   }
 }

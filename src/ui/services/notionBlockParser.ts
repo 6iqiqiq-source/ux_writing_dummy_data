@@ -25,16 +25,8 @@ export function extractBlockText(block: NotionBlock): string {
 
 // 블록 목록을 마크다운 형식의 가이드라인 텍스트로 변환
 export function blocksToGuidelineText(blocks: NotionBlock[]): string {
-  const unsupportedTypes = new Set<string>()
-  const supportedTypes = new Set(['heading_1', 'heading_2', 'heading_3', 'paragraph', 'bulleted_list_item', 'numbered_list_item', 'quote', 'callout', 'toggle', 'table', 'table_row'])
-
   return blocks
     .map(block => {
-      // 미지원 블록 타입 추적
-      if (!supportedTypes.has(block.type)) {
-        unsupportedTypes.add(block.type)
-      }
-
       const text = extractBlockText(block)
 
       // 블록 타입별 포맷팅
@@ -74,5 +66,4 @@ export function blocksToGuidelineText(blocks: NotionBlock[]): string {
     })
     .filter(Boolean)
     .join('\n')
-    .concat(unsupportedTypes.size > 0 ? `\n\n[DEBUG] 미지원 블록 타입: ${Array.from(unsupportedTypes).join(', ')}` : '')
 }

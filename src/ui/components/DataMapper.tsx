@@ -1,9 +1,9 @@
 // 데이터 매핑 컴포넌트
 // Notion 테이블 컬럼 버튼을 클릭하면 선택된 레이어에 즉시 데이터 적용
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import type { TextNodeInfo } from '../../plugin/types'
-import type { NotionPage } from '../types/notion'
-import { extractPropertyValue } from '../types/notion'
+import type { NotionPage, NotionDatabase } from '../types/notion'
+import { extractPropertyValue, getDatabaseTitle } from '../types/notion'
 
 interface DataMapperProps {
   selectedNodes: TextNodeInfo[]
@@ -11,10 +11,10 @@ interface DataMapperProps {
   properties: Record<string, { id: string; name: string; type: string }>
   isConnected: boolean
   isLoading: boolean
-  selectedDbName: string
   selectedDbId: string
   selectedDbUrl: string
-  onChangeDb: () => void
+  databases: NotionDatabase[]
+  onSelectDb: (dbId: string) => void
 }
 
 export function DataMapper({
@@ -23,13 +23,27 @@ export function DataMapper({
   properties,
   isConnected,
   isLoading,
-  selectedDbName,
   selectedDbId,
   selectedDbUrl,
-  onChangeDb,
+  databases,
+  onSelectDb,
 }: DataMapperProps) {
   const [applyingField, setApplyingField] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string; key: number } | null>(null)
+
+  // 데이터베이스 커스텀 드롭다운
+  const [isDbDropdownOpen, setIsDbDropdownOpen] = useState(false)
+  const dbDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dbDropdownRef.current && !dbDropdownRef.current.contains(e.target as Node)) {
+        setIsDbDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message, key: Date.now() })
@@ -114,10 +128,43 @@ export function DataMapper({
 
   return (
     <div>
-      {/* 현재 데이터베이스 정보 */}
-      <div className="db-info-row">
-        <span className="db-name">현재 데이터 베이스 : {selectedDbName}</span>
-        <button className="btn-change" onClick={onChangeDb}>변경</button>
+      {/* 데이터베이스 선택 드롭다운 */}
+      <div className="field-group" style={{ marginBottom: 12 }}>
+        <label className="field-label">데이터베이스</label>
+        <div className="custom-select-wrapper" ref={dbDropdownRef}>
+          <button
+            type="button"
+            className={`custom-select-trigger field-select ${isDbDropdownOpen ? 'open' : ''}`}
+            onClick={() => setIsDbDropdownOpen((prev) => !prev)}
+          >
+            <span>
+              {selectedDbId
+                ? getDatabaseTitle(databases.find((d) => d.id === selectedDbId)!)
+                : '선택해주세요'}
+            </span>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              style={{ transform: isDbDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}
+            >
+              <path fill="#666" d="M6 8L1 3h10z" />
+            </svg>
+          </button>
+          {isDbDropdownOpen && (
+            <ul className="custom-select-list">
+              {databases.map((db) => (
+                <li
+                  key={db.id}
+                  className={`custom-select-item ${selectedDbId === db.id ? 'selected' : ''}`}
+                  onClick={() => { onSelectDb(db.id); setIsDbDropdownOpen(false) }}
+                >
+                  {getDatabaseTitle(db)}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       {/* Notion 데이터베이스 열기 버튼 */}

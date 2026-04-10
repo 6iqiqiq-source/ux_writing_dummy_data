@@ -5,6 +5,7 @@ import { saveStorage, loadStorage } from './pluginBridge'
 // 저장 키 상수
 export const STORAGE_KEYS = {
   GEMINI_TOKEN: 'gemini_token',
+  NOTION_TOKEN: 'notion_token',
   SELECTED_DB: 'selected_db',
   CACHED_DATABASES: 'cached_databases',
   GUIDELINE_PAGE_ID: 'guideline_page_id',
@@ -23,17 +24,26 @@ export async function loadGeminiModel(): Promise<string | null> {
   return loadStorage<string>(STORAGE_KEYS.GEMINI_MODEL)
 }
 
-// 모델별 사용량 추적
+// 모델별 사용량 추적 (날짜 기반 자동 리셋)
+type UsageData = { date: string; counts: Record<string, number> }
+
+function getTodayString(): string {
+  return new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+}
+
 export async function getUsageStats(): Promise<Record<string, number>> {
-  const stats = await loadStorage<Record<string, number>>(STORAGE_KEYS.USAGE_STATS)
-  return stats || {}
+  const data = await loadStorage<UsageData>(STORAGE_KEYS.USAGE_STATS)
+  if (!data) return {}
+  // 날짜가 다르면 자동 리셋
+  if (data.date !== getTodayString()) return {}
+  return data.counts || {}
 }
 
 export async function incrementUsage(model: string): Promise<Record<string, number>> {
-  const stats = await getUsageStats()
-  stats[model] = (stats[model] || 0) + 1
-  saveStorage(STORAGE_KEYS.USAGE_STATS, stats)
-  return stats
+  const counts = await getUsageStats()
+  counts[model] = (counts[model] || 0) + 1
+  saveStorage(STORAGE_KEYS.USAGE_STATS, { date: getTodayString(), counts })
+  return counts
 }
 
 // 선택된 DB 저장/로드
@@ -52,6 +62,15 @@ export function saveGeminiToken(token: string) {
 
 export async function loadGeminiToken(): Promise<string | null> {
   return loadStorage<string>(STORAGE_KEYS.GEMINI_TOKEN)
+}
+
+// Notion Integration Token 저장/로드
+export function saveNotionToken(token: string) {
+  saveStorage(STORAGE_KEYS.NOTION_TOKEN, token)
+}
+
+export async function loadNotionToken(): Promise<string | null> {
+  return loadStorage<string>(STORAGE_KEYS.NOTION_TOKEN)
 }
 
 // 데이터베이스 목록 캐싱

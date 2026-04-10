@@ -1,3 +1,7 @@
+import { incrementUsage } from './storageService'
+
+const REQUEST_TIMEOUT_MS = 30_000 // 30초 타임아웃
+
 export interface GenerateTextParams {
   nodes: { id: string; originalText: string }[]
   prompt: string
@@ -11,7 +15,7 @@ export async function generateAIText(params: GenerateTextParams): Promise<{ id: 
   if (!nodes.length) return []
   if (!apiKey) throw new Error('Gemini API 키가 필요합니다.')
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
 
   const systemInstruction = `
 당신은 Figma 플러그인에서 동작하는 전문 UX 라이터 및 카피라이터입니다.
@@ -53,11 +57,18 @@ export async function generateAIText(params: GenerateTextParams): Promise<{ id: 
     }
   }
 
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
   try {
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
       body: JSON.stringify(body),
+      signal: controller.signal,
     })
 
     if (!response.ok) {
@@ -75,14 +86,14 @@ export async function generateAIText(params: GenerateTextParams): Promise<{ id: 
     try {
       generatedTexts = JSON.parse(contentText)
       if (!Array.isArray(generatedTexts) || generatedTexts.length !== nodes.length) {
-         throw new Error('배열 길이 불일치')
+         throw new Error('API 응답 형식이 올바르지 않습니다.')
       }
     } catch (e) {
       throw new Error('API 응답 형식이 올바르지 않습니다.')
     }
 
-    // 성공 시 사용량 증가 (background task)
-    import('./storageService').then(m => m.incrementUsage(model)).catch(console.error)
+    // 성공 시 사용량 증가
+    incrementUsage(model).catch(() => {/* 사용량 기록 실패는 무시 */})
 
     return nodes.map((node, index) => ({
       id: node.id,
@@ -90,9 +101,14 @@ export async function generateAIText(params: GenerateTextParams): Promise<{ id: 
     }))
 
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('요청 시간이 초과되었습니다. 네트워크 상태를 확인해주세요.')
+    }
     if (error instanceof Error) {
       throw error
     }
     throw new Error('알 수 없는 오류가 발생했습니다.')
+  } finally {
+    clearTimeout(timeoutId)
   }
 }

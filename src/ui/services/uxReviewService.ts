@@ -1,5 +1,8 @@
 // UX 라이팅 검증 AI 서비스
 // Gemini API를 사용하여 가이드라인 기반으로 텍스트 검증
+import { incrementUsage } from './storageService'
+
+const REQUEST_TIMEOUT_MS = 30_000 // 30초 타임아웃
 
 export interface ReviewResult {
   nodeId: string
@@ -9,6 +12,7 @@ export interface ReviewResult {
   reason?: string // fail인 경우 위반 사유
   suggestion?: string // fail인 경우 개선안 텍스트
   guidelineRef?: string // 참조한 가이드라인 항목
+  applied?: boolean // 개선안 적용 여부 (UI 상태)
 }
 
 export interface ReviewParams {
@@ -25,7 +29,7 @@ export async function reviewUXWriting(params: ReviewParams): Promise<ReviewResul
   if (!apiKey) throw new Error('Gemini API 키가 필요합니다.')
   if (!guidelineText) throw new Error('가이드라인 문서가 설정되지 않았습니다.')
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
 
   const systemInstruction = `
 당신은 전문 UX 라이팅 검수자입니다.
@@ -77,11 +81,18 @@ ${guidelineText}
     }
   }
 
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
   try {
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
       body: JSON.stringify(body),
+      signal: controller.signal,
     })
 
     if (!response.ok) {
@@ -112,8 +123,8 @@ ${guidelineText}
       throw new Error('API 응답 형식이 올바르지 않습니다.')
     }
 
-    // 성공 시 사용량 증가 (background task)
-    import('./storageService').then(m => m.incrementUsage(model)).catch(console.error)
+    // 성공 시 사용량 증가
+    incrementUsage(model).catch(() => {/* 사용량 기록 실패는 무시 */})
 
     // 결과 매핑: nodeName과 originalText 추가
     return results.map((result) => {
@@ -130,9 +141,14 @@ ${guidelineText}
     })
 
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('요청 시간이 초과되었습니다. 네트워크 상태를 확인해주세요.')
+    }
     if (error instanceof Error) {
       throw error
     }
     throw new Error('알 수 없는 오류가 발생했습니다.')
+  } finally {
+    clearTimeout(timeoutId)
   }
 }

@@ -1,7 +1,7 @@
 // UX 라이팅 검증 탭 컴포넌트
 import React, { useState, useEffect } from 'react'
 import { postToPlugin, waitForMessage, onPluginMessage } from '../services/pluginBridge'
-import { loadGeminiToken, loadGuidelinePageId, loadGuidelinePageName, loadGuidelineTextCache, saveGuidelineTextCache } from '../services/storageService'
+import { loadGuidelinePageId, loadGuidelinePageName, loadGuidelineTextCache, saveGuidelineTextCache } from '../services/storageService'
 import { callNotionProxy } from '../services/supabaseClient'
 import { blocksToGuidelineText, type NotionBlock } from '../services/notionBlockParser'
 import { reviewUXWriting, type ReviewResult } from '../services/uxReviewService'
@@ -10,12 +10,11 @@ interface UXReviewProps {
   guidelinePageId: string
   guidelinePageName: string
   geminiModel: string
+  geminiToken: string
+  notionToken: string
 }
 
-export function UXReview({ guidelinePageId, guidelinePageName, geminiModel }: UXReviewProps) {
-  // Gemini API 키
-  const [geminiToken, setGeminiToken] = useState('')
-
+export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, geminiToken, notionToken }: UXReviewProps) {
   // 가이드라인 텍스트
   const [guidelineText, setGuidelineText] = useState('')
   const [isLoadingGuideline, setIsLoadingGuideline] = useState(false)
@@ -27,13 +26,9 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel }: UX
   // 토스트 메시지
   const [toastMsg, setToastMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  // 초기화: Gemini 토큰 및 가이드라인 로드
+  // 초기화: 가이드라인 로드
   useEffect(() => {
     const init = async () => {
-      const token = await loadGeminiToken()
-      if (token) setGeminiToken(token)
-
-      // 가이드라인이 설정되어 있으면 텍스트 로드
       if (guidelinePageId) {
         await loadGuidelineContent(guidelinePageId)
       }
@@ -55,17 +50,12 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel }: UX
       // 2. Notion API로 블록 조회 (중첩 블록 포함)
       const result = await callNotionProxy('retrieve_blocks_recursive', {
         blockId: pageId,
-      })
+      }, notionToken)
 
       const blocks: NotionBlock[] = result.results || []
 
       // 3. 블록 → 텍스트 변환
       const text = blocksToGuidelineText(blocks)
-      console.log('[UXReview] 가이드라인 로드 완료:', {
-        blockCount: blocks.length,
-        textLength: text.length,
-        preview: text.substring(0, 200) + (text.length > 200 ? '...' : '')
-      })
       setGuidelineText(text)
       saveGuidelineTextCache(text)
     } catch (error) {
@@ -122,13 +112,8 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel }: UX
       }
 
       // 2. Gemini API로 검증 요청
-      console.log('[UXReview] 검증 시작:', {
-        nodeCount: response.nodes.length,
-        guidelineLength: guidelineText.length,
-        guidelinePreview: guidelineText.substring(0, 100)
-      })
       const results = await reviewUXWriting({
-        nodes: response.nodes.map((n: any) => ({
+        nodes: response.nodes.map((n: { id: string; name: string; characters: string }) => ({
           id: n.id,
           name: n.name,
           originalText: n.characters,
@@ -204,7 +189,6 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel }: UX
               className="btn btn-secondary btn-small"
               onClick={handleRefreshGuideline}
               disabled={isLoadingGuideline}
-              style={{ padding: '2px 6px', fontSize: 10 }}
             >
               {isLoadingGuideline ? '로딩...' : '새로고침'}
             </button>
@@ -287,9 +271,9 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel }: UX
                       <button
                         className="btn-apply-suggestion"
                         onClick={() => handleApplySuggestion(result.nodeId, result.suggestion!, index)}
-                        disabled={(result as any).applied}
+                        disabled={result.applied}
                       >
-                        {(result as any).applied ? '✓ 적용됨' : '적용'}
+                        {result.applied ? '✓ 적용됨' : '적용'}
                       </button>
                       <div style={{ clear: 'both' }} />
                     </>

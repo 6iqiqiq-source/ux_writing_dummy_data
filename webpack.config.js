@@ -1,6 +1,8 @@
 const path = require('path')
+const webpack = require('webpack')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const HtmlInlineScriptPlugin = require('html-inline-script-webpack-plugin')
+require('dotenv').config()
 
 module.exports = (env, argv) => ({
   // Plugin 코드와 UI 코드를 별도 엔트리로 번들
@@ -20,7 +22,7 @@ module.exports = (env, argv) => ({
       {
         test: /\.tsx?$/,
         use: 'ts-loader',
-        exclude: /node_modules/,
+        exclude: [/node_modules/, /__tests__/],
       },
       {
         test: /\.css$/,
@@ -35,6 +37,21 @@ module.exports = (env, argv) => ({
 
   // Figma UI는 단일 HTML 파일이어야 하므로 JS를 인라인
   plugins: [
+    new webpack.DefinePlugin({
+      // 환경변수 필수 — .env 파일 또는 CI/CD 환경에서 설정
+      // SUPABASE_URL: Supabase 프로젝트 URL (예: https://xxxx.supabase.co)
+      // SUPABASE_ANON_KEY: Supabase 익명 공개 키
+      // PLUGIN_SECRET: Notion 프록시 Edge Function 인증용 시크릿
+      'process.env.SUPABASE_URL': JSON.stringify(
+        process.env.SUPABASE_URL || ''
+      ),
+      'process.env.SUPABASE_ANON_KEY': JSON.stringify(
+        process.env.SUPABASE_ANON_KEY || ''
+      ),
+      'process.env.PLUGIN_SECRET': JSON.stringify(
+        process.env.PLUGIN_SECRET || ''
+      ),
+    }),
     new HtmlWebpackPlugin({
       template: './src/ui/index.html',
       filename: 'ui.html',

@@ -1,16 +1,14 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { TextNodeInfo } from '../../plugin/types'
-import { loadGeminiToken, saveGeminiToken } from '../services/storageService'
 import { generateAIText } from '../services/geminiService'
 
 interface Props {
   selectedNodes: TextNodeInfo[]
   geminiModel: string
+  geminiToken: string
 }
 
-export function AIGenerator({ selectedNodes, geminiModel }: Props) {
-  const [token, setToken] = useState('')
-  const [isTokenSaved, setIsTokenSaved] = useState(false)
+export function AIGenerator({ selectedNodes, geminiModel, geminiToken }: Props) {
   const [prompt, setPrompt] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string; key: number } | null>(null)
@@ -20,24 +18,9 @@ export function AIGenerator({ selectedNodes, geminiModel }: Props) {
     setTimeout(() => setToast(null), 3000)
   }
 
-  useEffect(() => {
-    loadGeminiToken().then((savedToken) => {
-      if (savedToken) {
-        setToken(savedToken)
-        setIsTokenSaved(true)
-      }
-    })
-  }, [])
-
-  const handleSaveToken = () => {
-    if (!token.trim()) return
-    saveGeminiToken(token.trim())
-    setIsTokenSaved(true)
-  }
-
   const handleGenerate = async () => {
-    if (!token) {
-      showToast('error', 'Gemini API 키가 필요합니다.')
+    if (!geminiToken) {
+      showToast('error', 'Gemini API 키가 필요합니다. 설정 탭에서 입력해주세요.')
       return
     }
     if (!prompt.trim()) {
@@ -53,7 +36,7 @@ export function AIGenerator({ selectedNodes, geminiModel }: Props) {
 
     try {
       const generatedMappings = await generateAIText({
-        apiKey: token,
+        apiKey: geminiToken,
         prompt: prompt.trim(),
         nodes: selectedNodes.map(n => ({ id: n.id, originalText: n.characters })),
         model: geminiModel
@@ -84,58 +67,57 @@ export function AIGenerator({ selectedNodes, geminiModel }: Props) {
 
   return (
     <div className="ai-generator">
-      {!isTokenSaved ? (
-        <div className="field-group">
-          <label className="field-label">Gemini API Key</label>
-          <input
-            type="password"
-            className="field-input"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="AI Studio에서 발급받은 API 키 입력"
-          />
-          <button className="btn btn-primary btn-block" style={{ marginTop: '8px' }} onClick={handleSaveToken}>
-            저장하기
-          </button>
+      {/* Gemini 연결 상태 */}
+      {geminiToken ? (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '6px 8px',
+          background: '#f0f7ff',
+          borderRadius: 4,
+          fontSize: 11,
+          marginBottom: 12,
+        }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', display: 'inline-block', flexShrink: 0 }} />
+          <span style={{ color: '#666' }}>Gemini API 연결됨</span>
         </div>
       ) : (
-        <div className="field-group">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <label className="field-label">Gemini API 가 연결되었습니다.</label>
-            <button className="btn btn-secondary btn-small" onClick={() => setIsTokenSaved(false)}>
-              변경
-            </button>
-          </div>
+        <div style={{
+          padding: '8px',
+          background: '#fff9e6',
+          borderRadius: 4,
+          fontSize: 11,
+          color: '#996600',
+          marginBottom: 12,
+        }}>
+          ⚠ 설정 탭에서 Gemini API 키를 입력해주세요
         </div>
       )}
 
-      {isTokenSaved && (
-        <>
-          <div className="field-group" style={{ marginTop: '16px' }}>
-            <label className="field-label">프롬프트</label>
-            <textarea
-              className="field-input"
-              rows={4}
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="예: 친근하고 공손한 톤의 에러 메시지로 작성해줘"
-              style={{ resize: 'vertical' }}
-            />
-          </div>
+      <div className="field-group">
+        <label className="field-label">프롬프트</label>
+        <textarea
+          className="field-input"
+          rows={4}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="예: 친근하고 공손한 톤의 에러 메시지로 작성해줘"
+          style={{ resize: 'vertical' }}
+        />
+      </div>
 
-          <button
-            className="btn btn-primary btn-block"
-            onClick={handleGenerate}
-            disabled={isLoading || selectedNodes.length === 0}
-          >
-            {isLoading ? (
-              <><span className="spinner"></span>생성 중...</>
-            ) : (
-              `선택된 레이어 (${selectedNodes.length}개) 생성하기`
-            )}
-          </button>
-        </>
-      )}
+      <button
+        className="btn btn-primary btn-block"
+        onClick={handleGenerate}
+        disabled={isLoading || selectedNodes.length === 0 || !geminiToken}
+      >
+        {isLoading ? (
+          <><span className="spinner"></span>생성 중...</>
+        ) : (
+          `선택된 레이어 (${selectedNodes.length}개) 생성하기`
+        )}
+      </button>
 
       {/* 하단 고정 토스트 메시지 */}
       {toast && (

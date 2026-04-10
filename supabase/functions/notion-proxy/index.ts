@@ -1,14 +1,34 @@
 // Notion API 프록시 Edge Function
 // Figma 플러그인 UI에서 CORS 제약 없이 Notion API를 호출하기 위한 중간 프록시
-// 회사 Notion 토큰을 서버 측에서 관리하여 클라이언트에 노출되지 않도록 함
+// 사용자 본인의 Notion Integration Token을 요청 body로 전달받아 사용
 import { corsHeaders } from '../_shared/cors.ts'
 
 const NOTION_API_BASE = 'https://api.notion.com'
 const NOTION_VERSION = '2022-06-28'
 
-// 회사 공용 Notion Integration Token (환경 변수 사용)
-const COMPANY_NOTION_TOKEN = Deno.env.get('COMPANY_NOTION_TOKEN')
-const DEFAULT_GUIDELINE_PAGE_ID = Deno.env.get('DEFAULT_GUIDELINE_PAGE_ID') || ''
+// 무분별한 호출 차단용 시크릿 (클라이언트 빌드 타임에 삽입된 값과 대조)
+const PLUGIN_SECRET = Deno.env.get('PLUGIN_SECRET')
+
+// IP 기반 Rate Limiting: 분당 최대 30회
+// Map<ip, { count: number, resetAt: number }>
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+const RATE_LIMIT = 30        // 분당 최대 요청 수
+const RATE_WINDOW_MS = 60_000 // 1분
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const entry = rateLimitMap.get(ip)
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS })
+    return true
+  }
+
+  if (entry.count >= RATE_LIMIT) return false
+
+  entry.count++
+  return true
+}
 
 Deno.serve(async (req) => {
   // CORS preflight 요청 처리
@@ -16,8 +36,42 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // IP 기반 Rate Limiting 체크
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  if (!checkRateLimit(ip)) {
+    return new Response(
+      JSON.stringify({ error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 429,
+      }
+    )
+  }
+
+  // PLUGIN_SECRET 검증 (필수: 미설정 시 서비스 거부)
+  if (!PLUGIN_SECRET) {
+    return new Response(
+      JSON.stringify({ error: 'PLUGIN_SECRET 환경변수가 설정되지 않았습니다. 서비스 관리자에게 문의하세요.' }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 503,
+      }
+    )
+  }
+
+  const pluginSecret = req.headers.get('x-plugin-secret')
+  if (pluginSecret !== PLUGIN_SECRET) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized' }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 403,
+      }
+    )
+  }
+
   try {
-    const { action, databaseId, ...params } = await req.json()
+    const { action, databaseId, notionToken, ...params } = await req.json()
 
     // 필수 파라미터 검증
     if (!action) {
@@ -30,8 +84,18 @@ Deno.serve(async (req) => {
       )
     }
 
+    if (!notionToken) {
+      return new Response(
+        JSON.stringify({ error: 'notionToken이 필요합니다. Notion Integration Token을 설정 탭에서 입력해주세요.' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      )
+    }
+
     const notionHeaders = {
-      Authorization: `Bearer ${COMPANY_NOTION_TOKEN}`,
+      Authorization: `Bearer ${notionToken}`,
       'Notion-Version': NOTION_VERSION,
       'Content-Type': 'application/json',
     }
@@ -46,20 +110,21 @@ Deno.serve(async (req) => {
         })
         break
 
-      // 접근 가능한 데이터베이스 목록 검색 (페이지네이션 처리)
+      // 접근 가능한 데이터베이스 목록 검색 (페이지네이션 처리, 최대 500개)
       case 'search_databases': {
         const allDatabases: unknown[] = []
         let hasMore = true
         let startCursor: string | undefined = undefined
+        const MAX_PAGES = 5 // 페이지당 100개 × 5페이지 = 최대 500개
 
-        // 모든 페이지 순회
-        while (hasMore) {
+        let pageCount = 0
+        while (hasMore && pageCount < MAX_PAGES) {
           const response: Response = await fetch(`${NOTION_API_BASE}/v1/search`, {
             method: 'POST',
             headers: notionHeaders,
             body: JSON.stringify({
               filter: { property: 'object', value: 'database' },
-              start_cursor: startCursor,
+              ...(startCursor ? { start_cursor: startCursor } : {}),
             }),
           })
 
@@ -67,9 +132,9 @@ Deno.serve(async (req) => {
           allDatabases.push(...(data.results ?? []))
           hasMore = data.has_more ?? false
           startCursor = data.next_cursor
+          pageCount++
         }
 
-        // 통합 응답 반환
         return new Response(JSON.stringify({ results: allDatabases }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200,
@@ -146,7 +211,6 @@ Deno.serve(async (req) => {
           )
         }
 
-        // 재귀적으로 모든 블록 수집
         const allBlocks: any[] = []
 
         async function fetchBlocks(parentId: string) {
@@ -162,7 +226,6 @@ Deno.serve(async (req) => {
 
             for (const block of data.results || []) {
               allBlocks.push(block)
-              // has_children인 경우 재귀 호출
               if (block.has_children) {
                 await fetchBlocks(block.id)
               }
@@ -181,17 +244,7 @@ Deno.serve(async (req) => {
         })
       }
 
-      // 기본 설정 조회 (환경 변수)
-      case 'get_defaults': {
-        return new Response(JSON.stringify({
-          guidelinePageId: DEFAULT_GUIDELINE_PAGE_ID
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        })
-      }
-
-      // 페이지 정보 조회 (URL로 입력된 경우)
+      // 페이지 정보 조회
       case 'retrieve_page': {
         const { pageId } = params as { pageId?: string }
         if (!pageId) {

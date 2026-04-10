@@ -15,9 +15,9 @@ interface UseNotionDataReturn {
   error: string | null
 
   // 액션
-  validateToken: () => Promise<boolean>
-  searchDatabases: () => Promise<void>
-  queryDatabase: (databaseId: string) => Promise<void>
+  validateToken: (notionToken: string) => Promise<boolean>
+  searchDatabases: (notionToken: string) => Promise<void>
+  queryDatabase: (databaseId: string, notionToken: string) => Promise<void>
   setDatabasesDirect: (dbs: NotionDatabase[]) => void
   clearError: () => void
 }
@@ -31,12 +31,12 @@ export function useNotionData(): UseNotionDataReturn {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // 토큰 유효성 검증 (서버 측 토큰 사용)
-  const validateToken = useCallback(async (): Promise<boolean> => {
+  // 토큰 유효성 검증
+  const validateToken = useCallback(async (notionToken: string): Promise<boolean> => {
     setIsLoading(true)
     setError(null)
     try {
-      await callNotionProxy('validate_token', {})
+      await callNotionProxy('validate_token', {}, notionToken)
       return true
     } catch (err) {
       setError(
@@ -48,12 +48,12 @@ export function useNotionData(): UseNotionDataReturn {
     }
   }, [])
 
-  // 데이터베이스 목록 검색 (서버 측 토큰 사용)
-  const searchDatabases = useCallback(async () => {
+  // 데이터베이스 목록 검색
+  const searchDatabases = useCallback(async (notionToken: string) => {
     setIsLoading(true)
     setError(null)
     try {
-      const data = await callNotionProxy('search_databases', {})
+      const data = await callNotionProxy('search_databases', {}, notionToken)
       setDatabases(data.results ?? [])
       // 캐시 저장
       if (data.results) saveDatabases(data.results)
@@ -68,15 +68,15 @@ export function useNotionData(): UseNotionDataReturn {
     }
   }, [])
 
-  // 데이터베이스 내 페이지 조회 (서버 측 토큰 사용)
+  // 데이터베이스 내 페이지 조회
   const queryDatabase = useCallback(
-    async (databaseId: string) => {
+    async (databaseId: string, notionToken: string) => {
       setIsLoading(true)
       setError(null)
       try {
         const data = await callNotionProxy('query_database', {
           databaseId,
-        })
+        }, notionToken)
 
         const resultPages: NotionPage[] = data.results ?? []
         setPages(resultPages)
