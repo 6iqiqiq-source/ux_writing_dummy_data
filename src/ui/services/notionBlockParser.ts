@@ -57,7 +57,10 @@ export function blocksToGuidelineText(blocks: NotionBlock[]): string {
           return cellTexts.join(' | ')
         }
         case 'table':
-          // 테이블 블록 자체는 텍스트 없음
+        case 'synced_block':
+        case 'column_list':
+        case 'column':
+          // 컨테이너 블록은 텍스트 없음 (하위 블록이 별도로 처리됨)
           return ''
         case 'paragraph':
         default:

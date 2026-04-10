@@ -18,6 +18,7 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, gemi
   // 가이드라인 텍스트
   const [guidelineText, setGuidelineText] = useState('')
   const [isLoadingGuideline, setIsLoadingGuideline] = useState(false)
+  const [guidelineLoadError, setGuidelineLoadError] = useState<string | null>(null)
 
   // 검증 상태
   const [isReviewing, setIsReviewing] = useState(false)
@@ -26,40 +27,55 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, gemi
   // 토스트 메시지
   const [toastMsg, setToastMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  // 초기화: 가이드라인 로드
+  // 초기화: guidelinePageId와 notionToken이 모두 준비됐을 때 로드
   useEffect(() => {
     const init = async () => {
-      if (guidelinePageId) {
+      if (guidelinePageId && notionToken) {
         await loadGuidelineContent(guidelinePageId)
       }
     }
     init()
-  }, [guidelinePageId])
+  }, [guidelinePageId, notionToken])
 
   // 가이드라인 콘텐츠 로드 (캐시 우선, 없으면 Notion API 호출)
-  const loadGuidelineContent = async (pageId: string) => {
+  // 로드된 텍스트를 반환하여 호출자가 바로 사용할 수 있도록 함
+  const loadGuidelineContent = async (pageId: string): Promise<string> => {
     setIsLoadingGuideline(true)
+    setGuidelineLoadError(null)
     try {
       // 1. 캐시 확인
       const cached = await loadGuidelineTextCache()
+      console.log('[guideline] pageId:', pageId, '| notionToken 길이:', notionToken?.length, '| 캐시:', cached?.length ?? 0, '자')
       if (cached) {
         setGuidelineText(cached)
-        return
+        return cached
       }
 
       // 2. Notion API로 블록 조회 (중첩 블록 포함)
+      // 하이픈 없는 ID를 UUID 형식으로 변환 (Notion API 요구사항)
+      const normalizedId = pageId.includes('-') ? pageId
+        : `${pageId.slice(0, 8)}-${pageId.slice(8, 12)}-${pageId.slice(12, 16)}-${pageId.slice(16, 20)}-${pageId.slice(20)}`
       const result = await callNotionProxy('retrieve_blocks_recursive', {
-        blockId: pageId,
+        blockId: normalizedId,
       }, notionToken)
 
+      console.log('[guideline] API 응답 블록 수:', result.results?.length ?? 0)
+
       const blocks: NotionBlock[] = result.results || []
+      // 디버깅: 블록 타입과 내용 확인
+      blocks.forEach((b, i) => console.log(`[guideline] 블록[${i}] type=${b.type}, has_children=${b.has_children}, keys=${Object.keys(b).join(',')}`))
 
       // 3. 블록 → 텍스트 변환
       const text = blocksToGuidelineText(blocks)
+      console.log('[guideline] 변환된 텍스트 길이:', text.length)
       setGuidelineText(text)
       saveGuidelineTextCache(text)
+      return text
     } catch (error) {
-      showToast('error', error instanceof Error ? error.message : '가이드라인을 불러오는데 실패했습니다')
+      const msg = error instanceof Error ? error.message : '가이드라인을 불러오는데 실패했습니다'
+      console.error('[guideline] 에러:', msg)
+      setGuidelineLoadError(msg)
+      return ''
     } finally {
       setIsLoadingGuideline(false)
     }
@@ -92,9 +108,21 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, gemi
       return
     }
 
-    if (!guidelinePageId || !guidelineText) {
+    if (!guidelinePageId) {
       showToast('error', '설정 탭에서 가이드라인 문서를 선택해주세요')
       return
+    }
+
+    // 가이드라인 텍스트가 아직 로드되지 않았으면 로드 시도
+    let currentGuidelineText = guidelineText
+    if (!currentGuidelineText) {
+      showToast('success', '가이드라인을 불러오는 중...')
+      currentGuidelineText = await loadGuidelineContent(guidelinePageId)
+
+      if (!currentGuidelineText) {
+        showToast('error', guidelineLoadError || '가이드라인 텍스트를 불러올 수 없습니다. 설정을 확인해주세요.')
+        return
+      }
     }
 
     setIsReviewing(true)
@@ -129,7 +157,7 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, gemi
             name: n.name ?? '',
             originalText: n.characters,
           })),
-        guidelineText,
+        guidelineText: currentGuidelineText,
         apiKey: geminiToken,
         model: geminiModel,
       })
@@ -219,7 +247,7 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, gemi
       <button
         className="btn btn-primary btn-block"
         onClick={handleReview}
-        disabled={isReviewing || !guidelinePageId || !guidelineText || isLoadingGuideline || !geminiToken}
+        disabled={isReviewing || !guidelinePageId || isLoadingGuideline || !geminiToken}
         style={{ marginTop: 8 }}
       >
         {isReviewing ? (
@@ -236,6 +264,20 @@ export function UXReview({ guidelinePageId, guidelinePageName, geminiModel, gemi
           'UX 라이팅 검증하기'
         )}
       </button>
+
+      {/* 가이드라인 텍스트 로드 실패 안내 */}
+      {guidelineLoadError && (
+        <div style={{
+          padding: '8px',
+          background: '#fff0f0',
+          borderRadius: 4,
+          fontSize: 11,
+          color: '#cc0000',
+          marginTop: 8,
+        }}>
+          ⚠ 가이드라인 로드 실패: {guidelineLoadError}
+        </div>
+      )}
 
       {/* Gemini API 키 안내 */}
       {!geminiToken && (

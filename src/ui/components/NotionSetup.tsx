@@ -118,16 +118,15 @@ export function NotionSetup({
     setIsEditingGemini(false)
   }
 
-  // Notion URL 또는 ID에서 페이지 ID 추출
+  // Notion URL 또는 ID에서 페이지 ID 추출 (UUID 형식으로 변환)
   const extractPageIdFromInput = (input: string): string | null => {
     const trimmed = input.trim()
     // Notion URL 패턴에서 32자리 hex ID 추출
     const urlMatch = trimmed.match(/([a-f0-9]{32})(?:[?#]|$)/i)
-    if (urlMatch) return urlMatch[1]
-    // 하이픈 포함 UUID
-    const cleanId = trimmed.replace(/-/g, '')
-    if (/^[a-f0-9]{32}$/i.test(cleanId)) return cleanId
-    return null
+    const hexId = urlMatch ? urlMatch[1] : trimmed.replace(/-/g, '')
+    if (!/^[a-f0-9]{32}$/i.test(hexId)) return null
+    // Notion API가 요구하는 UUID 형식(8-4-4-4-12)으로 변환
+    return `${hexId.slice(0, 8)}-${hexId.slice(8, 12)}-${hexId.slice(12, 16)}-${hexId.slice(16, 20)}-${hexId.slice(20)}`
   }
 
   // 페이지 ID 입력 처리

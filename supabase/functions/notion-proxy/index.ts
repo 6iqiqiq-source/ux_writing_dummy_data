@@ -227,7 +227,12 @@ Deno.serve(async (req) => {
             for (const block of data.results || []) {
               allBlocks.push(block)
               if (block.has_children) {
-                await fetchBlocks(block.id)
+                // synced_block 참조인 경우 원본 블록 ID로 children 조회
+                if (block.type === 'synced_block' && block.synced_block?.synced_from?.block_id) {
+                  await fetchBlocks(block.synced_block.synced_from.block_id)
+                } else {
+                  await fetchBlocks(block.id)
+                }
               }
             }
 

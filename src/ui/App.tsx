@@ -59,9 +59,9 @@ export function App() {
       // 가이드라인 페이지 로드
       const pageId = await loadGuidelinePageId()
       const pageName = await loadGuidelinePageName()
-      if (pageId && pageName && mounted) {
+      if (pageId && mounted) {
         setGuidelinePageId(pageId)
-        setGuidelinePageName(pageName)
+        setGuidelinePageName(pageName ?? '가이드라인 문서')
       }
 
       // 모델 설정 로드
